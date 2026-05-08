@@ -1,18 +1,65 @@
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
 const API_BASE = 'https://doctorsuite.app';
+
+const STORAGE_KEYS = { token: 'ds_auth_token', user: 'ds_auth_user' };
 
 let _token = null;
 let _user = null;
 let _onLogout = null;
+let _restored = false;
+
+// Web (expo web) não tem SecureStore — fallback p/ localStorage.
+const storage = {
+  async get(key) {
+    if (Platform.OS === 'web') {
+      try { return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null; } catch { return null; }
+    }
+    try { return await SecureStore.getItemAsync(key); } catch { return null; }
+  },
+  async set(key, value) {
+    if (Platform.OS === 'web') {
+      try { if (typeof localStorage !== 'undefined') localStorage.setItem(key, value); } catch {}
+      return;
+    }
+    try { await SecureStore.setItemAsync(key, value); } catch {}
+  },
+  async del(key) {
+    if (Platform.OS === 'web') {
+      try { if (typeof localStorage !== 'undefined') localStorage.removeItem(key); } catch {}
+      return;
+    }
+    try { await SecureStore.deleteItemAsync(key); } catch {}
+  },
+};
 
 export function setLogoutHandler(fn) { _onLogout = fn; }
 
-export function setAuth(token, user) {
+export async function setAuth(token, user) {
   _token = token;
   _user = user;
+  await storage.set(STORAGE_KEYS.token, token || '');
+  await storage.set(STORAGE_KEYS.user, JSON.stringify(user || null));
 }
 
 export function getUser() { return _user; }
 export function getToken() { return _token; }
+
+// Carrega sessão persistida na inicialização. Chamar antes de qualquer redirect.
+export async function restoreAuth() {
+  if (_restored) return { token: _token, user: _user };
+  _restored = true;
+  try {
+    const token = await storage.get(STORAGE_KEYS.token);
+    const userStr = await storage.get(STORAGE_KEYS.user);
+    if (token) _token = token;
+    if (userStr) {
+      try { _user = JSON.parse(userStr); } catch { _user = null; }
+    }
+  } catch (_) {}
+  return { token: _token, user: _user };
+}
 
 export async function login(email, password) {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -22,8 +69,7 @@ export async function login(email, password) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Erro no login');
-  _token = data.token;
-  _user = data.user;
+  await setAuth(data.token, data.user);
   return data;
 }
 
@@ -37,10 +83,8 @@ export async function loginAsPatient(cpf, dob, clinic_id) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Erro no login');
-  // Multi-clinic: return data without setting auth (let caller handle)
   if (data.choose_clinic) return data;
-  _token = data.token;
-  _user = data.user;
+  await setAuth(data.token, data.user);
   return data;
 }
 
@@ -56,8 +100,7 @@ export async function api(path, options = {}) {
     headers,
   });
   if (res.status === 401) {
-    _token = null;
-    _user = null;
+    await _clearLocal();
     if (_onLogout) _onLogout();
     throw new Error('Sessão expirada');
   }
@@ -66,14 +109,20 @@ export async function api(path, options = {}) {
   return data;
 }
 
-export function logout() {
+async function _clearLocal() {
+  _token = null;
+  _user = null;
+  await storage.del(STORAGE_KEYS.token);
+  await storage.del(STORAGE_KEYS.user);
+}
+
+export async function logout() {
   if (_token) {
     fetch(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${_token}` },
     }).catch(() => {});
   }
-  _token = null;
-  _user = null;
+  await _clearLocal();
   if (_onLogout) _onLogout();
 }
