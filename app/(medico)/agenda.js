@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
+  View, Text, SectionList, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -49,7 +49,6 @@ export default function AgendaScreen() {
   const load = useCallback(async () => {
     try {
       const doctorId = user?.doctor_id;
-      console.log('[AGENDA] doctor_id:', doctorId, 'date:', date);
       const [appts, schedules] = await Promise.all([
         api(`/api/appointments?date=${date}${doctorId ? `&doctor_id=${doctorId}` : ''}`),
         doctorId ? api(`/api/doctor-schedules/${doctorId}`) : Promise.resolve(null),
@@ -57,7 +56,6 @@ export default function AgendaScreen() {
       const sorted = (appts || []).sort((a, b) => (a.appointment_time || '').localeCompare(b.appointment_time || ''));
       setAppointments(sorted);
 
-      // If no doctor_id (admin without doctor profile), skip schedule check
       if (!doctorId || schedules === null) {
         setSlots(null);
         setNoSchedule(false);
@@ -67,16 +65,9 @@ export default function AgendaScreen() {
         return;
       }
 
-      // DB uses 0=Monday...6=Sunday; JS getDay() returns 0=Sunday...6=Saturday
       const jsDow = new Date(date + 'T12:00:00').getDay();
       const adjustedDow = jsDow === 0 ? 6 : jsDow - 1;
-      console.log('[AGENDA] jsDow:', jsDow, 'adjustedDow:', adjustedDow);
-      const todaySchedule = (schedules || []).find(s => {
-        const matches = Number(s.day_of_week) === adjustedDow && Number(s.active) === 1;
-        console.log('[AGENDA] checking schedule: dow', s.day_of_week, '===', adjustedDow, 'active:', s.active, '=> matches:', matches);
-        return matches;
-      });
-      console.log('[AGENDA] todaySchedule:', todaySchedule ? 'FOUND' : 'NOT FOUND');
+      const todaySchedule = (schedules || []).find(s => Number(s.day_of_week) === adjustedDow && Number(s.active) === 1);
 
       if (todaySchedule) {
         setSlots(generateSlots(todaySchedule, sorted));
@@ -98,9 +89,12 @@ export default function AgendaScreen() {
     setDate(d.toISOString().slice(0, 10));
   };
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isToday = date === todayStr;
+
   const formatDate = (d) => {
     const dt = new Date(d + 'T12:00:00');
-    return dt.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+    return dt.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace('.', '');
   };
 
   const statusColor = (st) => {
@@ -119,14 +113,11 @@ export default function AgendaScreen() {
 
   const handleTapAppointment = (appt) => {
     if (!appt) return;
-    // Build procedures list
     const procs = (appt.procedures || []).map(p => {
       const ins = p.is_particular ? 'Particular' : (p.insurance_name || 'Particular');
       return `${p.type_name || 'Procedimento'} (${ins})`;
     });
-    if (procs.length === 0 && appt.procedures_summary) {
-      procs.push(appt.procedures_summary);
-    }
+    if (procs.length === 0 && appt.procedures_summary) procs.push(appt.procedures_summary);
     if (procs.length === 0) procs.push(appt.type_name || 'Consulta');
 
     const timeStart = (appt.appointment_time || '').slice(0, 5);
@@ -160,33 +151,34 @@ export default function AgendaScreen() {
   const renderSlot = ({ item }) => {
     const appt = item.appointment;
     const hasAppt = !!appt;
+    const procLines = hasAppt
+      ? ((appt.procedures && appt.procedures.length > 0)
+        ? appt.procedures.map(p => `${p.type_name || 'Procedimento'} · ${p.is_particular ? 'Particular' : (p.insurance_name || 'Particular')}`)
+        : [appt.procedures_summary || appt.type_name || 'Consulta'])
+      : [];
+
     return (
       <TouchableOpacity
-        style={[s.slotCard, hasAppt && s.slotBooked]}
+        style={s.slotCard}
         onPress={() => handleTapAppointment(appt)}
         activeOpacity={hasAppt ? 0.7 : 1}
         disabled={!hasAppt}
       >
         <View style={s.slotTimeCol}>
           <Text style={s.slotTime}>{item.time}</Text>
-          <Text style={s.slotTimeSep}>—</Text>
-          <Text style={s.slotTimeEnd}>{item.endTime}</Text>
         </View>
         {hasAppt ? (
           <View style={s.slotBody}>
-            <View style={[s.slotAccent, { backgroundColor: statusColor(appt.status) }]} />
-            <View style={s.slotContent}>
+            <View style={s.slotHeader}>
+              <View style={[s.statusDot, { backgroundColor: statusColor(appt.status) }]} />
               <Text style={s.patientName} numberOfLines={1}>{appt.patient_name || 'Paciente'}</Text>
-              <View style={s.slotMeta}>
-                <Text style={s.procText} numberOfLines={1}>{appt.procedures_summary || appt.type_name || 'Consulta'}</Text>
-                <View style={[s.statusBadge, { backgroundColor: statusColor(appt.status) + '22' }]}>
-                  <Text style={[s.statusText, { color: statusColor(appt.status) }]}>{statusLabel(appt.status)}</Text>
-                </View>
-              </View>
             </View>
+            {procLines.map((line, i) => (
+              <Text key={i} style={s.procLine} numberOfLines={1}>{line}</Text>
+            ))}
           </View>
         ) : (
-          <View style={s.slotEmpty}>
+          <View style={s.slotBody}>
             <Text style={s.emptyLabel}>Disponível</Text>
           </View>
         )}
@@ -194,23 +186,56 @@ export default function AgendaScreen() {
     );
   };
 
-  const data = slots || appointments.map(a => ({
+  const renderSectionHeader = ({ section }) => (
+    <View style={s.sectionHeader}>
+      <Text style={s.sectionTitle}>{section.title}</Text>
+    </View>
+  );
+
+  const allSlots = slots || appointments.map(a => ({
     time: (a.appointment_time || '').slice(0, 5),
     endTime: '',
     appointment: a,
   }));
 
+  const morning = allSlots.filter(d => d.time < '12:00');
+  const afternoon = allSlots.filter(d => d.time >= '12:00');
+  const sections = [];
+  if (morning.length) sections.push({ title: 'MANHÃ', data: morning });
+  if (afternoon.length) sections.push({ title: 'TARDE', data: afternoon });
+
+  const livres = slots ? slots.filter(x => !x.appointment).length : 0;
+  const canceladas = appointments.filter(a => a.status === 'cancelado').length;
+  const consultasAtivas = appointments.length - canceladas;
+  const statItems = [];
+  if (consultasAtivas > 0) statItems.push(`${consultasAtivas} ${consultasAtivas === 1 ? 'consulta' : 'consultas'}`);
+  if (slots) statItems.push(`${livres} ${livres === 1 ? 'livre' : 'livres'}`);
+  if (canceladas > 0) statItems.push(`${canceladas} ${canceladas === 1 ? 'cancelada' : 'canceladas'}`);
+
   return (
     <View style={s.container}>
       <View style={s.dateNav}>
         <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}>
-          <Ionicons name="chevron-back" size={22} color={Colors.primary} />
+          <Ionicons name="chevron-back" size={20} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={s.dateText}>{formatDate(date)}</Text>
+        <View style={s.dateCenter}>
+          <Text style={s.dateText}>{formatDate(date)}</Text>
+          {!isToday && (
+            <TouchableOpacity onPress={() => setDate(todayStr)} style={s.todayBtn}>
+              <Text style={s.todayBtnText}>Hoje</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <TouchableOpacity onPress={() => changeDate(1)} style={s.dateBtn}>
-          <Ionicons name="chevron-forward" size={22} color={Colors.primary} />
+          <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
         </TouchableOpacity>
       </View>
+
+      {!loading && !noSchedule && statItems.length > 0 && (
+        <View style={s.statsBar}>
+          <Text style={s.statText}>{statItems.join('  ·  ')}</Text>
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: Spacing.xxl }} />
@@ -221,10 +246,12 @@ export default function AgendaScreen() {
           <Text style={s.noScheduleSubtitle}>Este médico não possui horário de atendimento configurado para este dia da semana.</Text>
         </View>
       ) : (
-        <FlatList
-          data={data}
+        <SectionList
+          sections={sections}
           keyExtractor={(item, i) => item.time + i}
           renderItem={renderSlot}
+          renderSectionHeader={renderSectionHeader}
+          stickySectionHeadersEnabled={false}
           contentContainerStyle={s.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
           ListEmptyComponent={
@@ -241,26 +268,33 @@ export default function AgendaScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  dateBtn: { padding: Spacing.sm },
-  dateText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text, textTransform: 'capitalize' },
-  list: { padding: Spacing.sm },
-  slotCard: { flexDirection: 'row', marginBottom: 2, minHeight: 56, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  slotBooked: { backgroundColor: Colors.white },
-  slotTimeCol: { width: 70, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.sm },
-  slotTime: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
-  slotTimeSep: { fontSize: FontSize.xs, color: Colors.textMuted, lineHeight: 14 },
-  slotTimeEnd: { fontSize: FontSize.sm, fontWeight: '500', color: Colors.textMuted },
-  slotBody: { flex: 1, flexDirection: 'row' },
-  slotAccent: { width: 4, borderRadius: 2 },
-  slotContent: { flex: 1, paddingHorizontal: Spacing.md, justifyContent: 'center', paddingVertical: Spacing.sm },
-  patientName: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  slotMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 },
-  procText: { fontSize: FontSize.sm, color: Colors.textSecondary, flex: 1 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.full },
-  statusText: { fontSize: FontSize.xs, fontWeight: '700' },
-  slotEmpty: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.md },
-  emptyLabel: { fontSize: FontSize.sm, color: Colors.textMuted, fontStyle: 'italic' },
+
+  dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  dateBtn: { padding: Spacing.xs },
+  dateCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateText: { fontSize: 14, fontWeight: '600', color: Colors.text, textTransform: 'capitalize' },
+  todayBtn: { paddingHorizontal: 8, paddingVertical: 2, backgroundColor: Colors.primarySofter, borderRadius: Radius.full },
+  todayBtnText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+
+  statsBar: { paddingHorizontal: Spacing.md, paddingVertical: 6, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  statText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' },
+
+  sectionHeader: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: 4, backgroundColor: Colors.bg },
+  sectionTitle: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6 },
+
+  list: { paddingBottom: Spacing.lg },
+  slotCard: { flexDirection: 'row', backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
+  slotTimeCol: { width: 46, paddingTop: 1 },
+  slotTime: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+
+  slotBody: { flex: 1 },
+  slotHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  patientName: { fontSize: 13, fontWeight: '700', color: Colors.text, textTransform: 'uppercase', letterSpacing: 0.3, flex: 1 },
+  procLine: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, marginLeft: 14 },
+
+  emptyLabel: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
+
   emptyState: { alignItems: 'center', marginTop: Spacing.xxl },
   emptyStateText: { fontSize: FontSize.md, color: Colors.textMuted, marginTop: Spacing.md },
   noScheduleContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },

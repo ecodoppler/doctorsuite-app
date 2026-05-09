@@ -23,15 +23,40 @@ export default function PacienteLayout() {
         </Text>
       ) : undefined,
     }}>
+      <Tabs.Screen name="inicio" options={{
+        title: 'Início',
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => <Ionicons name="heart-circle" size={size} color={color} />,
+      }} />
+      <Tabs.Screen name="prenatal" options={{
+        title: 'Pré-natal',
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => <Ionicons name="pulse" size={size} color={color} />,
+      }} />
+      <Tabs.Screen name="exames" options={{
+        title: 'Exames',
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => <Ionicons name="flask" size={size} color={color} />,
+      }} />
+      <Tabs.Screen name="exame-detalhe" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="alertas" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="vacinas" options={{
+        title: 'Vacinas',
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
+      }} />
+      <Tabs.Screen name="plano" options={{
+        title: 'Plano',
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" size={size} color={color} />,
+      }} />
       <Tabs.Screen name="agendamentos" options={{
-        title: 'Consultas',
+        href: null,
         headerTitle: 'Minhas Consultas',
-        tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
       }} />
       <Tabs.Screen name="laudos" options={{
-        title: 'Laudos',
+        href: null,
         headerTitle: 'Meus Laudos',
-        tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
       }} />
       <Tabs.Screen name="perfil" options={{
         title: 'Perfil',

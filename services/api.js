@@ -124,5 +124,10 @@ export async function logout() {
     }).catch(() => {});
   }
   await _clearLocal();
+  try {
+    const bio = await import('./biometric');
+    await bio.clearEnabled();
+    await bio.clearActivity();
+  } catch {}
   if (_onLogout) _onLogout();
 }

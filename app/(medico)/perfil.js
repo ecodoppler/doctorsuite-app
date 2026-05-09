@@ -1,12 +1,59 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { getUser, logout } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+import {
+  isSupported as bioIsSupported,
+  isEnabled as bioIsEnabled,
+  setEnabled as bioSetEnabled,
+  authenticate as bioAuthenticate,
+  getBiometricLabel,
+  touchActive as bioTouchActive,
+} from '../../services/biometric';
 
 export default function PerfilScreen() {
   const router = useRouter();
   const user = getUser();
+  const [bioSupported, setBioSupported] = useState(false);
+  const [bioOn, setBioOn] = useState(false);
+  const [bioLabel, setBioLabel] = useState('Biometria');
+  const [bioBusy, setBioBusy] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const sup = await bioIsSupported();
+      const en = await bioIsEnabled();
+      const label = await getBiometricLabel();
+      if (mounted) {
+        setBioSupported(sup);
+        setBioOn(en);
+        setBioLabel(label);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const handleToggleBio = useCallback(async (value) => {
+    if (bioBusy) return;
+    setBioBusy(true);
+    try {
+      if (value) {
+        const res = await bioAuthenticate(`Confirme para ativar ${bioLabel}`);
+        if (!res?.success) return;
+        await bioSetEnabled(true);
+        await bioTouchActive();
+        setBioOn(true);
+      } else {
+        await bioSetEnabled(false);
+        setBioOn(false);
+      }
+    } finally {
+      setBioBusy(false);
+    }
+  }, [bioBusy, bioLabel]);
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Deseja sair da sua conta?', [
@@ -38,6 +85,25 @@ export default function PerfilScreen() {
         <MenuItem icon="briefcase" label="Função" value={roleLabel(user?.role)} />
       </View>
 
+      {bioSupported && (
+        <View style={s.section}>
+          <View style={s.bioRow}>
+            <Ionicons name="finger-print" size={20} color={Colors.primary} />
+            <View style={{ flex: 1, marginLeft: Spacing.md }}>
+              <Text style={s.menuValue}>Acesso por {bioLabel}</Text>
+              <Text style={s.menuLabel}>Desbloqueia ao abrir o app</Text>
+            </View>
+            <Switch
+              value={bioOn}
+              onValueChange={handleToggleBio}
+              disabled={bioBusy}
+              trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+              thumbColor={Platform.OS === 'android' ? (bioOn ? Colors.primary : '#f4f4f5') : undefined}
+            />
+          </View>
+        </View>
+      )}
+
       <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
         <Text style={s.logoutText}>Sair da conta</Text>
@@ -68,8 +134,9 @@ const s = StyleSheet.create({
   name: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.text },
   role: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '600', marginTop: 4 },
   email: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
-  section: { margin: Spacing.md, backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderLight },
+  section: { margin: Spacing.md, marginBottom: 0, backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderLight },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  bioRow: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md },
   menuLabel: { fontSize: FontSize.sm, color: Colors.textMuted },
   menuValue: { fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: Spacing.md, padding: Spacing.md, backgroundColor: Colors.dangerBg, borderRadius: Radius.md, gap: Spacing.sm },

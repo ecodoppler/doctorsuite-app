@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
+  View, Text, SectionList, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
   RefreshControl, ScrollView, Alert, Linking,
 } from 'react-native';
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
@@ -81,26 +83,62 @@ const statusColors = {
 
 export default function ProntuarioScreen() {
   const [patients, setPatients] = useState([]);
-  const [filtered, setFiltered] = useState([]);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [listFilter, setListFilter] = useState('all');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [prontuarioData, setProntuarioData] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [filter, setFilter] = useState('all');
+  const listRef = useRef(null);
 
-  const load = useCallback(async () => {
+  // Debounce: search → searchQuery (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const load = useCallback(async (offset = 0) => {
+    if (offset > 0) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const data = await api('/api/patients');
-      setPatients(data || []);
-      setFiltered(data || []);
+      const params = new URLSearchParams();
+      if (searchQuery) params.set('search', searchQuery);
+      if (listFilter === 'recent') params.set('filter', 'recent');
+      params.set('limit', '50');
+      if (offset > 0) params.set('offset', String(offset));
+      const data = await api(`/api/patients?${params}`);
+      const list = data?.patients || [];
+      setTotal(Number(data?.total || 0));
+      if (offset === 0) setPatients(list);
+      else setPatients(prev => [...prev, ...list]);
     } catch (e) { console.warn(e); }
-    finally { setLoading(false); setRefreshing(false); }
-  }, []);
+    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+  }, [searchQuery, listFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(0); }, [load]);
+
+  const handleEndReached = useCallback(() => {
+    if (loadingMore || loading || refreshing) return;
+    if (patients.length >= total) return;
+    load(patients.length);
+  }, [loadingMore, loading, refreshing, patients.length, total, load]);
+
+  const sections = useMemo(() => {
+    const map = new Map();
+    for (const p of patients) {
+      const c = (p.name || '#').trim()[0]?.toUpperCase() || '#';
+      const key = /[A-Z]/.test(c) ? c : '#';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(p);
+    }
+    return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
+  }, [patients]);
 
   // Listen for navigation from agenda → prontuário
   useEffect(() => {
@@ -111,17 +149,6 @@ export default function ProntuarioScreen() {
     });
     return unsub;
   }, []);
-
-  useEffect(() => {
-    if (!search.trim()) { setFiltered(patients); return; }
-    const q = search.toLowerCase();
-    setFiltered(patients.filter(p =>
-      (p.name || '').toLowerCase().includes(q) ||
-      (p.cpf || '').includes(q) ||
-      (p.phone || '').includes(q) ||
-      (p.patient_number || '').toString().includes(q)
-    ));
-  }, [search, patients]);
 
   const openPatient = async (patient) => {
     setSelectedPatient(patient);
@@ -249,8 +276,6 @@ export default function ProntuarioScreen() {
   }
 
   // ======================== LIST VIEW ========================
-  if (loading) return <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
-
   return (
     <View style={s.container}>
       <View style={s.searchBar}>
@@ -270,34 +295,92 @@ export default function ProntuarioScreen() {
           </TouchableOpacity>
         )}
       </View>
-      <Text style={s.count}>{filtered.length} paciente{filtered.length !== 1 ? 's' : ''}</Text>
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={s.card} activeOpacity={0.7} onPress={() => openPatient(item)}>
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{getInitials(item.name)}</Text>
-            </View>
-            <View style={s.cardBody}>
-              <Text style={s.name} numberOfLines={1}>{item.name}</Text>
-              <View style={s.meta}>
-                {item.phone && <Text style={s.metaText}>📞 {item.phone}</Text>}
+
+      <View style={s.chipsRow}>
+        <TouchableOpacity
+          style={[s.chip, listFilter === 'all' && s.chipActive]}
+          onPress={() => setListFilter('all')}
+        >
+          <Text style={[s.chipText, listFilter === 'all' && s.chipTextActive]}>Todos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.chip, listFilter === 'recent' && s.chipActive]}
+          onPress={() => setListFilter('recent')}
+        >
+          <Text style={[s.chipText, listFilter === 'recent' && s.chipTextActive]}>Recentes</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={s.count}>
+        {searchQuery
+          ? `${total} ${total === 1 ? 'resultado' : 'resultados'} para "${searchQuery}"`
+          : listFilter === 'recent'
+            ? `${total} ${total === 1 ? 'paciente recente' : 'pacientes recentes'} (últimos 30 dias)`
+            : `${patients.length}${total > patients.length ? ` de ${total}` : ''} paciente${total !== 1 ? 's' : ''}`}
+      </Text>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: Spacing.xxl }} />
+      ) : (
+        <View style={{ flex: 1 }}>
+          <SectionList
+            ref={listRef}
+            sections={sections}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={s.row} activeOpacity={0.6} onPress={() => openPatient(item)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rowName} numberOfLines={1}>{item.name}</Text>
+                  {item.phone && <Text style={s.rowMeta}>{item.phone}</Text>}
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
+            renderSectionHeader={({ section }) => (
+              <View style={s.sectionHeaderList}>
+                <Text style={s.sectionHeaderText}>{section.title}</Text>
               </View>
-              {item.cpf && <Text style={s.cpf}>CPF: {item.cpf}</Text>}
+            )}
+            stickySectionHeadersEnabled={true}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={loadingMore ? <ActivityIndicator color={Colors.primary} style={{ padding: Spacing.md }} /> : null}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(0); }} tintColor={Colors.primary} />}
+            ListEmptyComponent={
+              <View style={s.empty}>
+                <Ionicons name="people-outline" size={48} color={Colors.textMuted} />
+                <Text style={s.emptyText}>{searchQuery ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}</Text>
+              </View>
+            }
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                try { listRef.current?.scrollToLocation({ sectionIndex: info.index, itemIndex: 0, animated: true, viewPosition: 0 }); } catch {}
+              }, 100);
+            }}
+          />
+
+          {sections.length > 1 && !searchQuery && (
+            <View style={s.sideIndex} pointerEvents="box-none">
+              {ALPHABET.map(letter => {
+                const idx = sections.findIndex(sec => sec.title === letter);
+                const enabled = idx >= 0;
+                return (
+                  <TouchableOpacity
+                    key={letter}
+                    style={s.sideIndexBtn}
+                    disabled={!enabled}
+                    onPress={() => {
+                      try { listRef.current?.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: false, viewPosition: 0 }); } catch {}
+                    }}
+                  >
+                    <Text style={[s.sideIndexLetter, !enabled && s.sideIndexDisabled]}>{letter}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={s.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Ionicons name="people-outline" size={48} color={Colors.textMuted} />
-            <Text style={s.emptyText}>{search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}</Text>
-          </View>
-        }
-      />
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -378,16 +461,21 @@ const s = StyleSheet.create({
   // Search / List
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, margin: Spacing.md, marginBottom: 0, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: FontSize.md, color: Colors.text },
-  count: { fontSize: FontSize.sm, color: Colors.textMuted, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, paddingBottom: Spacing.xs },
-  list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.borderLight },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primarySofter, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
-  avatarText: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary },
-  cardBody: { flex: 1 },
-  name: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
-  meta: { flexDirection: 'row', gap: 12, marginTop: 2 },
-  metaText: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  cpf: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  chipsRow: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.full, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  chipTextActive: { color: Colors.white },
+  count: { fontSize: 11, color: Colors.textMuted, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, paddingBottom: Spacing.xs },
+  sectionHeaderList: { backgroundColor: Colors.bg, paddingHorizontal: Spacing.md, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  sectionHeaderText: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6 },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, paddingHorizontal: Spacing.md, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  rowName: { fontSize: 13, fontWeight: '700', color: Colors.text, textTransform: 'uppercase', letterSpacing: 0.3 },
+  rowMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+  sideIndex: { position: 'absolute', right: 2, top: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', paddingVertical: 4 },
+  sideIndexBtn: { paddingHorizontal: 4, paddingVertical: 1 },
+  sideIndexLetter: { fontSize: 9, fontWeight: '700', color: Colors.primary },
+  sideIndexDisabled: { color: Colors.borderLight },
   empty: { alignItems: 'center', marginTop: Spacing.xxl },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted, marginTop: Spacing.md },
   // Detail
