@@ -278,15 +278,15 @@ export default function InicioScreen() {
         {/* Intercorrências */}
         <Section>
           <SectionTitle>Intercorrências da gestação</SectionTitle>
-          <Card padding={0}>
+          <Card padding={12}>
             {patient.intercorrencias && patient.intercorrencias.length > 0
-              ? patient.intercorrencias.map((it, i, arr) => (
-                  <View key={i} style={[s.interRow, i < arr.length - 1 && s.itemBorder]}>
-                    <Text style={s.interIG}>{it.ig}</Text>
-                    <Text style={s.interDesc}>{it.desc}</Text>
+              ? patient.intercorrencias.map((it, i) => (
+                  <View key={i} style={s.bulletRow}>
+                    <Text style={s.bulletDot}>·</Text>
+                    <Text style={s.bulletText}>{it}</Text>
                   </View>
                 ))
-              : <Text style={[s.empty, { padding: 14 }]}>Sem intercorrências registradas até o momento.</Text>}
+              : <Text style={s.empty}>Sem intercorrências registradas até o momento.</Text>}
           </Card>
         </Section>
 
