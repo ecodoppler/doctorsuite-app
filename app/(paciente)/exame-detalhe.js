@@ -1,25 +1,53 @@
-import { ScrollView, View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Rect, Line, Path, Circle, G, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Circle, G, Text as SvgText } from 'react-native-svg';
 import Card from '../../components/pregnancy/Card';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
-import { LAB_SERIES } from '../../services/pregnancyMock';
+import { api } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
 
 export default function ExameDetalheScreen() {
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  const series = LAB_SERIES[id];
-  if (!series) {
+  const [series, setSeries] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  const examKey = String(params.id || params.name || '').trim();
+
+  const load = useCallback(async () => {
+    if (!examKey) { setLoading(false); return; }
+    try {
+      setErr(null);
+      const d = await api(`/api/my-pregnancy/labs/${encodeURIComponent(examKey)}`);
+      setSeries(d);
+    } catch (e) {
+      setErr(e?.message || 'Falha ao carregar');
+    } finally {
+      setLoading(false);
+    }
+  }, [examKey]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) {
+    return (
+      <View style={s.container}><View style={s.loaderWrap}>
+        <ActivityIndicator size="large" color={Warm.accentDeep} />
+      </View></View>
+    );
+  }
+  if (err || !series) {
     return (
       <View style={s.containerEmpty}>
-        <Text style={s.emptyText}>Exame não encontrado.</Text>
+        <Text style={s.emptyText}>{err || 'Exame não encontrado.'}</Text>
         <Pressable onPress={() => router.back()} style={s.backLink}>
           <Text style={s.backLinkText}>Voltar</Text>
         </Pressable>
@@ -27,22 +55,35 @@ export default function ExameDetalheScreen() {
     );
   }
 
-  // Geometria do gráfico
+  const points = series.points || [];
+  const last = points[points.length - 1];
+  const lastUnit = last?.unit || series.unit || '';
+
+  // Pontos numéricos para plotar (descarta entradas qualitativas como "Não reagente")
+  const numericPoints = points
+    .map(p => ({ ...p, _num: parseFloat(String(p.value).replace(',', '.')) }))
+    .filter(p => Number.isFinite(p._num));
+
   const W = Math.min(Math.max(240, width - 60), 360);
   const H = 160;
-  const padL = 36, padR = 12, padT = 12, padB = 24;
-  const values = series.points.map(p => p.value);
-  const yMin = Math.min(series.refMin, ...values) * 0.92;
-  const yMax = Math.max(series.refMax, ...values) * 1.08;
-  const xN = Math.max(1, series.points.length - 1);
-  const px = (i) => padL + (i / xN) * (W - padL - padR);
-  const py = (v) => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
-  const path = series.points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${px(i).toFixed(1)} ${py(p.value).toFixed(1)}`)
-    .join(' ');
-  const refTop = py(series.refMax);
-  const refBot = py(series.refMin);
-  const last = series.points[series.points.length - 1];
+  const padL = 30, padR = 12, padT = 12, padB = 24;
+
+  // Geometria do gráfico (sem faixa de referência)
+  let path = '';
+  let plotPoints = [];
+  if (numericPoints.length >= 2) {
+    const values = numericPoints.map(p => p._num);
+    const yMin = Math.min(...values);
+    const yMax = Math.max(...values);
+    const span = Math.max(0.0001, yMax - yMin);
+    const yLo = yMin - span * 0.1;
+    const yHi = yMax + span * 0.1;
+    const xN = Math.max(1, numericPoints.length - 1);
+    const px = (i) => padL + (i / xN) * (W - padL - padR);
+    const py = (v) => padT + (1 - (v - yLo) / (yHi - yLo)) * (H - padT - padB);
+    plotPoints = numericPoints.map((p, i) => ({ ...p, _x: px(i), _y: py(p._num) }));
+    path = plotPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p._x.toFixed(1)} ${p._y.toFixed(1)}`).join(' ');
+  }
 
   return (
     <View style={s.container}>
@@ -63,87 +104,83 @@ export default function ExameDetalheScreen() {
           </Pressable>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={s.eyebrow}>Evolução do exame</Text>
-            <Text style={s.examName} numberOfLines={1}>{series.name}</Text>
+            <Text style={s.examName} numberOfLines={1}>{series.name || examKey}</Text>
           </View>
         </View>
-        <View style={s.headerStats}>
-          <View>
-            <Text style={s.eyebrow}>Último valor</Text>
-            <Text style={s.lastValue}>
-              {last.value}<Text style={s.unit}> {series.unit}</Text>
-            </Text>
+        {last ? (
+          <View style={s.headerStats}>
+            <View>
+              <Text style={s.eyebrow}>Último valor</Text>
+              <Text style={s.lastValue}>
+                {last.value}{lastUnit ? <Text style={s.unit}> {lastUnit}</Text> : null}
+              </Text>
+            </View>
+            <View style={{ marginLeft: 32 }}>
+              <Text style={s.eyebrow}>Última coleta</Text>
+              <Text style={s.refRange}>{last.date}{last.ig ? ` · ${last.ig}` : ''}</Text>
+            </View>
           </View>
-          <View style={{ marginLeft: 32 }}>
-            <Text style={s.eyebrow}>Faixa de referência</Text>
-            <Text style={s.refRange}>{series.refMin} – {series.refMax} {series.unit}</Text>
-          </View>
-        </View>
+        ) : null}
       </LinearGradient>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        {/* Card com gráfico */}
-        <View style={s.section}>
-          <Card padding={14}>
-            <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-              {/* faixa de referência sombreada */}
-              <Rect
-                x={padL} y={refTop}
-                width={W - padL - padR} height={refBot - refTop}
-                fill="rgba(16,185,129,0.10)"
-              />
-              {/* tracejadas refMin / refMax */}
-              <Line x1={padL} x2={W - padR} y1={refTop} y2={refTop} stroke="rgba(16,185,129,0.5)" strokeDasharray="4 3" strokeWidth={1} />
-              <Line x1={padL} x2={W - padR} y1={refBot} y2={refBot} stroke="rgba(16,185,129,0.5)" strokeDasharray="4 3" strokeWidth={1} />
-              {/* labels eixo Y (refMin / refMax) */}
-              {[series.refMin, series.refMax].map((v, i) => (
-                <SvgText
-                  key={i}
-                  x={padL - 6} y={py(v) + 3}
-                  textAnchor="end" fontSize={9}
-                  fill={Status.slate} fontFamily={Fonts.num}
-                >{v}</SvgText>
-              ))}
-              {/* linha terracota */}
-              <Path d={path} fill="none" stroke={Warm.accentDeep} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-              {/* pontos + labels eixo X (IG) */}
-              {series.points.map((p, i) => (
-                <G key={i}>
-                  <Circle
-                    cx={px(i)} cy={py(p.value)}
-                    r={5} fill="#fff"
-                    stroke={p.flag === 'attn' ? Status.attn : Warm.accentDeep}
-                    strokeWidth={2.5}
-                  />
-                  <SvgText
-                    x={px(i)} y={H - 8}
-                    textAnchor="middle" fontSize={9}
-                    fill={Status.slate} fontFamily={Fonts.num}
-                  >{(p.ig || '').replace(' ', '')}</SvgText>
-                </G>
-              ))}
-            </Svg>
-          </Card>
-        </View>
+        {/* Card com gráfico (só se tiver 2+ pontos numéricos) */}
+        {plotPoints.length >= 2 ? (
+          <View style={s.section}>
+            <Card padding={14}>
+              <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+                <Path d={path} fill="none" stroke={Warm.accentDeep} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                {plotPoints.map((p, i) => (
+                  <G key={i}>
+                    <Circle
+                      cx={p._x} cy={p._y}
+                      r={5} fill="#fff"
+                      stroke={Warm.accentDeep}
+                      strokeWidth={2.5}
+                    />
+                    <SvgText
+                      x={p._x} y={H - 8}
+                      textAnchor="middle" fontSize={9}
+                      fill={Status.slate} fontFamily={Fonts.num}
+                    >{(p.ig || '').replace(' ', '')}</SvgText>
+                  </G>
+                ))}
+              </Svg>
+            </Card>
+          </View>
+        ) : numericPoints.length === 1 ? (
+          <View style={s.section}>
+            <Card padding={16}>
+              <Text style={s.empty}>Apenas uma medição registrada — gráfico aparecerá com 2 ou mais.</Text>
+            </Card>
+          </View>
+        ) : null}
 
         {/* Histórico cronológico reverso */}
         <View style={s.section}>
           <SectionTitle>Histórico</SectionTitle>
-          <Card padding={0}>
-            {[...series.points].reverse().map((p, i, arr) => (
-              <View key={i} style={[s.row, i < arr.length - 1 && s.rowBorder]}>
-                <View style={[s.bullet, { backgroundColor: p.flag === 'attn' ? Status.attn : Warm.accent }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rowDate}>
-                    {p.date}<Text style={s.rowIG}>  {p.ig}</Text>
+          {points.length === 0 ? (
+            <Card padding={16}>
+              <Text style={s.empty}>Sem registros nesta gestação.</Text>
+            </Card>
+          ) : (
+            <Card padding={0}>
+              {[...points].reverse().map((p, i, arr) => (
+                <View key={i} style={[s.row, i < arr.length - 1 && s.rowBorder]}>
+                  <View style={[s.bullet, { backgroundColor: Warm.accent }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rowDate}>
+                      {p.date}{p.ig ? <Text style={s.rowIG}>  {p.ig}</Text> : null}
+                    </Text>
+                    {p.notes ? <Text style={s.rowNote}>{p.notes}</Text> : null}
+                  </View>
+                  <Text style={s.rowValue}>
+                    {p.value}{p.unit ? <Text style={s.rowUnit}> {p.unit}</Text> : null}
                   </Text>
-                  {p.note ? <Text style={s.rowNote}>{p.note}</Text> : null}
                 </View>
-                <Text style={s.rowValue}>
-                  {p.value}<Text style={s.rowUnit}> {series.unit}</Text>
-                </Text>
-              </View>
-            ))}
-          </Card>
+              ))}
+            </Card>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -153,7 +190,9 @@ export default function ExameDetalheScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f6f7fb' },
   containerEmpty: { flex: 1, backgroundColor: '#f6f7fb', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyText: { fontSize: 14, color: Status.slate, fontFamily: Fonts.ui },
+  empty: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic', textAlign: 'center' },
   backLink: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 10 },
   backLinkText: { color: Warm.accentDeep, fontFamily: Fonts.uiBold, fontSize: 14 },
 
