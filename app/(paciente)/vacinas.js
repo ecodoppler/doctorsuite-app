@@ -1,20 +1,73 @@
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import VFHeader from '../../components/pregnancy/VFHeader';
 import Card from '../../components/pregnancy/Card';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
-import { PATIENT, PREGNANCY, VACCINES } from '../../services/pregnancyMock';
+import { api } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
 
 export default function VacinasScreen() {
-  const taken = VACCINES.filter(v => v.status === 'done');
-  const prev = VACCINES.filter(v => v.status === 'prev');
-  const pending = VACCINES.filter(v => v.status === 'pending');
+  const [data, setData] = useState(null);          // shape: { patient, pregnancy } (de /api/my-pregnancy)
+  const [vac, setVac] = useState(null);            // shape: { taken, prev, pending } (de /api/my-pregnancy/vaccines)
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      setErr(null);
+      const [pg, vc] = await Promise.all([
+        api('/api/my-pregnancy'),
+        api('/api/my-pregnancy/vaccines'),
+      ]);
+      setData(pg);
+      setVac(vc);
+    } catch (e) {
+      setErr(e?.message || 'Falha ao carregar');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  const onRefresh = () => { setRefreshing(true); load(); };
+
+  if (loading) {
+    return (
+      <View style={s.container}><View style={s.loaderWrap}>
+        <ActivityIndicator size="large" color={Warm.accentDeep} />
+      </View></View>
+    );
+  }
+  if (err) {
+    return (
+      <View style={s.container}><View style={[s.loaderWrap, { padding: 24 }]}>
+        <Ionicons name="cloud-offline-outline" size={40} color={Status.slate} />
+        <Text style={s.errText}>Não foi possível carregar.{'\n'}{err}</Text>
+        <Pressable onPress={() => { setLoading(true); load(); }} style={s.retryBtn}>
+          <Text style={s.retryText}>Tentar de novo</Text>
+        </Pressable>
+      </View></View>
+    );
+  }
+
+  const patient = data?.patient || {};
+  const pregnancy = data?.pregnancy;
+  const taken = vac?.taken || [];
+  const prev = vac?.prev || [];
+  const pending = vac?.pending || [];
 
   return (
     <View style={s.container}>
-      <VFHeader patient={PATIENT} pregnancy={PREGNANCY} />
+      <VFHeader patient={patient} pregnancy={pregnancy} />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Warm.accentDeep} />}
+      >
         {/* Título humano */}
         <View style={[s.section, { paddingTop: 14 }]}>
           <Text style={s.title}>Vacinas tomadas na gravidez</Text>
@@ -28,14 +81,14 @@ export default function VacinasScreen() {
           <View style={s.section}>
             <Card padding={0}>
               {taken.map((v, i) => (
-                <View key={i} style={[s.takenRow, i < taken.length - 1 && s.rowBorder]}>
+                <View key={v.id || i} style={[s.takenRow, i < taken.length - 1 && s.rowBorder]}>
                   <View style={s.checkBox}>
                     <Text style={s.checkText}>✓</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={s.takenHeader}>
                       <Text style={s.takenName} numberOfLines={2}>{v.name}</Text>
-                      <Text style={s.takenIG}>{v.ig}</Text>
+                      {v.ig ? <Text style={s.takenIG}>{v.ig}</Text> : null}
                     </View>
                     <Text style={s.takenDate}>{v.date}</Text>
                     {v.note ? <Text style={s.takenNote}>{v.note}</Text> : null}
@@ -52,10 +105,10 @@ export default function VacinasScreen() {
             <SectionTitle>Imunizações pré-gestacionais</SectionTitle>
             <Card padding={0}>
               {prev.map((v, i) => (
-                <View key={i} style={[s.prevRow, i < prev.length - 1 && s.rowBorder]}>
+                <View key={v.id || i} style={[s.prevRow, i < prev.length - 1 && s.rowBorder]}>
                   <View style={s.prevDot} />
                   <Text style={s.prevName} numberOfLines={1}>{v.name}</Text>
-                  <Text style={s.prevNote} numberOfLines={1}>{v.note}</Text>
+                  <Text style={s.prevNote} numberOfLines={1}>{v.note || v.date}</Text>
                 </View>
               ))}
             </Card>
@@ -65,18 +118,25 @@ export default function VacinasScreen() {
         {/* Card warm informativo */}
         <View style={s.section}>
           <View style={s.warmCard}>
-            <Text style={s.warmEyebrow}>
-              {pending.length > 0 ? 'Recomendado e ainda não aplicado' : 'Recomendado e ainda não aplicado'}
-            </Text>
+            <Text style={s.warmEyebrow}>Recomendado e ainda não aplicado</Text>
             {pending.length === 0 ? (
               <Text style={s.warmText}>
                 Todas as vacinas recomendadas para esta gestação foram aplicadas. ✓
               </Text>
             ) : (
               <View style={{ marginTop: 6 }}>
-                {pending.map((v, i) => (
-                  <Text key={i} style={s.pendingItem}>· {v.name}{v.note ? ` — ${v.note}` : ''}</Text>
-                ))}
+                {pending.map((v, i) => {
+                  const flag = v.flags?.includes('not_yet')
+                    ? ' (ainda não é hora)'
+                    : v.flags?.includes('late') ? ' (fora da janela ideal)' : '';
+                  return (
+                    <Text key={v.code || i} style={s.pendingItem}>
+                      · {v.short_name || v.name}
+                      {v.schedule_text ? ` — ${v.schedule_text}` : ''}
+                      {flag ? <Text style={s.pendingFlag}>{flag}</Text> : null}
+                    </Text>
+                  );
+                })}
               </View>
             )}
           </View>
@@ -89,6 +149,11 @@ export default function VacinasScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f6f7fb' },
   section: { paddingHorizontal: 16, paddingTop: 14 },
+
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 40 },
+  errText: { fontSize: 13, color: Status.slate, fontFamily: Fonts.ui, marginTop: 10, textAlign: 'center' },
+  retryBtn: { marginTop: 14, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12, backgroundColor: Warm.accentDeep },
+  retryText: { color: '#fff', fontFamily: Fonts.uiSemibold, fontSize: 13 },
 
   title: { fontFamily: Fonts.display, fontSize: 22, color: Status.ink, lineHeight: 26 },
   subtitle: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, marginTop: 2 },
@@ -123,4 +188,5 @@ const s = StyleSheet.create({
   warmEyebrow: { fontSize: 11, color: Warm.accentDeep, fontFamily: Fonts.uiBold, letterSpacing: 0.4, textTransform: 'uppercase' },
   warmText: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, marginTop: 6, lineHeight: 18 },
   pendingItem: { fontSize: 12, color: Status.ink, fontFamily: Fonts.ui, lineHeight: 18 },
+  pendingFlag: { fontSize: 11, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic' },
 });
