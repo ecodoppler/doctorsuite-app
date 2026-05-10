@@ -129,9 +129,12 @@ export default function VacinasScreen() {
                   const flag = v.flags?.includes('not_yet')
                     ? ' (ainda não é hora)'
                     : v.flags?.includes('late') ? ' (fora da janela ideal)' : '';
+                  const total = (v.doses_completed != null && v.doses_remaining != null) ? v.doses_completed + v.doses_remaining : null;
+                  const isMultiDose = total != null && total > 1;
                   return (
                     <Text key={v.code || i} style={s.pendingItem}>
                       · {v.short_name || v.name}
+                      {isMultiDose ? <Text style={s.pendingProgress}> ({v.doses_completed}/{total})</Text> : null}
                       {v.schedule_text ? ` — ${v.schedule_text}` : ''}
                       {flag ? <Text style={s.pendingFlag}>{flag}</Text> : null}
                     </Text>
@@ -188,5 +191,6 @@ const s = StyleSheet.create({
   warmEyebrow: { fontSize: 11, color: Warm.accentDeep, fontFamily: Fonts.uiBold, letterSpacing: 0.4, textTransform: 'uppercase' },
   warmText: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, marginTop: 6, lineHeight: 18 },
   pendingItem: { fontSize: 12, color: Status.ink, fontFamily: Fonts.ui, lineHeight: 18 },
+  pendingProgress: { fontSize: 11, color: Warm.accentDeep, fontFamily: Fonts.uiBold },
   pendingFlag: { fontSize: 11, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic' },
 });
