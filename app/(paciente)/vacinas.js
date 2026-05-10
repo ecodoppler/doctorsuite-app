@@ -90,7 +90,7 @@ export default function VacinasScreen() {
                       <Text style={s.takenName} numberOfLines={2}>{v.name}</Text>
                       {v.ig ? <Text style={s.takenIG}>{v.ig}</Text> : null}
                     </View>
-                    <Text style={s.takenDate}>{v.date}</Text>
+                    <Text style={s.takenDate}>{v.date || 'data não informada'}</Text>
                     {v.note ? <Text style={s.takenNote}>{v.note}</Text> : null}
                   </View>
                 </View>
@@ -108,7 +108,7 @@ export default function VacinasScreen() {
                 <View key={v.id || i} style={[s.prevRow, i < prev.length - 1 && s.rowBorder]}>
                   <View style={s.prevDot} />
                   <Text style={s.prevName} numberOfLines={1}>{v.name}</Text>
-                  <Text style={s.prevNote} numberOfLines={1}>{v.note || v.date}</Text>
+                  <Text style={s.prevNote} numberOfLines={1}>{v.note || v.date || '— pré-gestacional'}</Text>
                 </View>
               ))}
             </Card>
