@@ -58,6 +58,7 @@ function docSummary(doc) {
 }
 
 // Baixa o PDF privado com Bearer token pra cache local. Retorna URI do arquivo.
+// Usado SÓ pra Sharing — WebBrowser não aceita file:// (v0.0.094).
 async function downloadPdfToCache(doc) {
   const token = getToken();
   if (!token) throw new Error('Sessão expirada');
@@ -69,6 +70,13 @@ async function downloadPdfToCache(doc) {
   );
   if (result.status !== 200) throw new Error(`Falha (${result.status})`);
   return result.uri;
+}
+
+// v0.0.094: pega URL R2 assinada temporária (5min) — pra abrir no in-app browser.
+async function getSignedPdfUrl(doc) {
+  const r = await api(`/api/my-clinic-documents/${doc.id}/pdf-url`);
+  if (!r?.url) throw new Error('PDF não disponível');
+  return r.url;
 }
 
 export default function DocumentosScreen() {
@@ -97,25 +105,24 @@ export default function DocumentosScreen() {
 
   const validarUrl = (doc) => `${API_BASE}/validar/doc/${doc.id}`;
 
-  // Ver: prioriza PDF (in-app browser PDF viewer). Fallback: validação.
+  // Ver: prioriza PDF via URL R2 assinada (in-app browser). Fallback: validação.
+  // v0.0.094: WebBrowser não aceita file://; passamos URL R2 assinada (300s) em vez de baixar local.
   const handleVer = async (doc) => {
     if (busyId) return;
     setBusyId(doc.id);
     try {
+      let url;
       if (doc.has_pdf) {
-        const localUri = await downloadPdfToCache(doc);
-        await WebBrowser.openBrowserAsync(localUri, {
-          toolbarColor: Warm.accentDeep,
-          controlsColor: '#fff',
-          enableBarCollapsing: true,
-        });
+        url = await getSignedPdfUrl(doc);
       } else {
         // Doc legado sem PDF — abre validação como fallback
-        await WebBrowser.openBrowserAsync(validarUrl(doc), {
-          toolbarColor: Warm.accentDeep,
-          controlsColor: '#fff',
-        });
+        url = validarUrl(doc);
       }
+      await WebBrowser.openBrowserAsync(url, {
+        toolbarColor: Warm.accentDeep,
+        controlsColor: '#fff',
+        enableBarCollapsing: true,
+      });
     } catch (e) {
       Alert.alert('Erro ao abrir', e?.message || 'Tente novamente.');
     } finally {
