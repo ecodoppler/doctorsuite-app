@@ -136,6 +136,13 @@ export default function InicioScreen() {
               <Ionicons name="document-text-outline" size={13} color={Warm.accentDeep} />
               <Text style={s.shortcutText}>Laudos</Text>
             </Pressable>
+            <Pressable
+              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/(paciente)/documentos')}
+            >
+              <Ionicons name="shield-checkmark-outline" size={13} color={Warm.accentDeep} />
+              <Text style={s.shortcutText}>Documentos</Text>
+            </Pressable>
           </View>
         </View>
 

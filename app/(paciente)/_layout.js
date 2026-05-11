@@ -58,6 +58,10 @@ export default function PacienteLayout() {
         href: null,
         headerTitle: 'Meus Laudos',
       }} />
+      <Tabs.Screen name="documentos" options={{
+        href: null,
+        headerTitle: 'Meus Documentos',
+      }} />
       <Tabs.Screen name="perfil" options={{
         title: 'Perfil',
         headerTitle: 'Meu Perfil',
