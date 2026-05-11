@@ -85,7 +85,8 @@ export default function DocumentosScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [busyId, setBusyId] = useState(null);
+  // busy = { id, action: 'ver' | 'compartilhar' } pra mostrar spinner no botão certo
+  const [busy, setBusy] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -108,8 +109,8 @@ export default function DocumentosScreen() {
   // Ver: prioriza PDF via URL R2 assinada (in-app browser). Fallback: validação.
   // v0.0.094: WebBrowser não aceita file://; passamos URL R2 assinada (300s) em vez de baixar local.
   const handleVer = async (doc) => {
-    if (busyId) return;
-    setBusyId(doc.id);
+    if (busy) return;
+    setBusy({ id: doc.id, action: 'ver' });
     try {
       let url;
       if (doc.has_pdf) {
@@ -126,15 +127,15 @@ export default function DocumentosScreen() {
     } catch (e) {
       Alert.alert('Erro ao abrir', e?.message || 'Tente novamente.');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   // Compartilhar: arquivo .pdf como anexo (Share sheet nativo)
   // Pra docs sem PDF, compartilha URL da validação (fallback)
   const handleCompartilhar = async (doc) => {
-    if (busyId) return;
-    setBusyId(doc.id);
+    if (busy) return;
+    setBusy({ id: doc.id, action: 'compartilhar' });
     try {
       if (doc.has_pdf) {
         const localUri = await downloadPdfToCache(doc);
@@ -155,7 +156,7 @@ export default function DocumentosScreen() {
     } catch (e) {
       Alert.alert('Erro ao compartilhar', e?.message || 'Tente novamente.');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -229,7 +230,10 @@ export default function DocumentosScreen() {
           filtered.map((doc) => {
             const summary = docSummary(doc);
             const modeLabel = doc.mode === 'digital' ? 'Versão Digital' : 'Papel Timbrado';
-            const isBusy = busyId === doc.id;
+            const busyOnThisCard = busy?.id === doc.id;
+            const verLoading = busyOnThisCard && busy.action === 'ver';
+            const shareLoading = busyOnThisCard && busy.action === 'compartilhar';
+            const anyBusy = !!busy;
             return (
               <Card key={doc.id} padding={14} style={{ marginBottom: 10 }}>
                 <View style={s.docHeader}>
@@ -252,11 +256,11 @@ export default function DocumentosScreen() {
                 </View>
                 <View style={s.actionRow}>
                   <Pressable
-                    style={({ pressed }) => [s.btnPrimary, (pressed || isBusy) && { opacity: 0.85 }]}
+                    style={({ pressed }) => [s.btnPrimary, (pressed || anyBusy) && { opacity: 0.85 }]}
                     onPress={() => handleVer(doc)}
-                    disabled={isBusy}
+                    disabled={anyBusy}
                   >
-                    {isBusy ? (
+                    {verLoading ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
                       <>
@@ -266,12 +270,18 @@ export default function DocumentosScreen() {
                     )}
                   </Pressable>
                   <Pressable
-                    style={({ pressed }) => [s.btnSecondary, (pressed || isBusy) && { opacity: 0.85 }]}
+                    style={({ pressed }) => [s.btnSecondary, (pressed || anyBusy) && { opacity: 0.85 }]}
                     onPress={() => handleCompartilhar(doc)}
-                    disabled={isBusy}
+                    disabled={anyBusy}
                   >
-                    <Ionicons name="share-outline" size={14} color={Warm.accentDeep} />
-                    <Text style={s.btnSecondaryText}>{doc.has_pdf ? 'Compartilhar' : 'Validação'}</Text>
+                    {shareLoading ? (
+                      <ActivityIndicator size="small" color={Warm.accentDeep} />
+                    ) : (
+                      <>
+                        <Ionicons name="share-outline" size={14} color={Warm.accentDeep} />
+                        <Text style={s.btnSecondaryText}>{doc.has_pdf ? 'Compartilhar' : 'Validação'}</Text>
+                      </>
+                    )}
                   </Pressable>
                 </View>
               </Card>
