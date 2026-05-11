@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView, View, Text, Pressable, StyleSheet,
-  ActivityIndicator, RefreshControl, Linking, Share, Alert,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { api } from '../../services/api';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { api, getToken } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
 import Card from '../../components/pregnancy/Card';
 
@@ -24,7 +26,6 @@ const TYPE_ICONS = {
   encaminhamento: 'arrow-forward-circle-outline',
 };
 
-// Helper de data tolerante a Date (PG) ou string
 function fmtDate(raw) {
   if (!raw) return '—';
   const s = (raw instanceof Date) ? raw.toISOString().slice(0, 10) : String(raw).slice(0, 10);
@@ -32,7 +33,6 @@ function fmtDate(raw) {
   return new Date(s + 'T00:00:00').toLocaleDateString('pt-BR');
 }
 
-// Summary do conteúdo por tipo
 function docSummary(doc) {
   const c = doc.content || {};
   if (doc.doc_type === 'atestado') {
@@ -57,12 +57,27 @@ function docSummary(doc) {
   return '';
 }
 
+// Baixa o PDF privado com Bearer token pra cache local. Retorna URI do arquivo.
+async function downloadPdfToCache(doc) {
+  const token = getToken();
+  if (!token) throw new Error('Sessão expirada');
+  const localUri = FileSystem.cacheDirectory + `documento-${doc.id}.pdf`;
+  const result = await FileSystem.downloadAsync(
+    `${API_BASE}${doc.pdf_url}`,
+    localUri,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (result.status !== 200) throw new Error(`Falha (${result.status})`);
+  return result.uri;
+}
+
 export default function DocumentosScreen() {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -80,42 +95,63 @@ export default function DocumentosScreen() {
   useEffect(() => { load(); }, [load]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  const verUrl = (doc) => `${API_BASE}/validar/doc/${doc.id}`;
+  const validarUrl = (doc) => `${API_BASE}/validar/doc/${doc.id}`;
 
-  // Ver: WebView interna (in-app browser via expo-web-browser)
+  // Ver: prioriza PDF (in-app browser PDF viewer). Fallback: validação.
   const handleVer = async (doc) => {
+    if (busyId) return;
+    setBusyId(doc.id);
     try {
-      await WebBrowser.openBrowserAsync(verUrl(doc), {
-        toolbarColor: Warm.accentDeep,
-        controlsColor: '#fff',
-        enableBarCollapsing: true,
-      });
+      if (doc.has_pdf) {
+        const localUri = await downloadPdfToCache(doc);
+        await WebBrowser.openBrowserAsync(localUri, {
+          toolbarColor: Warm.accentDeep,
+          controlsColor: '#fff',
+          enableBarCollapsing: true,
+        });
+      } else {
+        // Doc legado sem PDF — abre validação como fallback
+        await WebBrowser.openBrowserAsync(validarUrl(doc), {
+          toolbarColor: Warm.accentDeep,
+          controlsColor: '#fff',
+        });
+      }
     } catch (e) {
-      Alert.alert('Erro', e?.message || 'Não foi possível abrir');
+      Alert.alert('Erro ao abrir', e?.message || 'Tente novamente.');
+    } finally {
+      setBusyId(null);
     }
   };
 
-  // Exportar: abre no browser nativo (Safari/Chrome) — paciente salva/imprime/AirDrop
-  const handleExportar = (doc) => {
-    Linking.openURL(verUrl(doc)).catch(() => {
-      Alert.alert('Erro', 'Não foi possível abrir no navegador.');
-    });
-  };
-
-  // Compartilhar: Share API nativa
+  // Compartilhar: arquivo .pdf como anexo (Share sheet nativo)
+  // Pra docs sem PDF, compartilha URL da validação (fallback)
   const handleCompartilhar = async (doc) => {
+    if (busyId) return;
+    setBusyId(doc.id);
     try {
-      await Share.share({
-        title: doc.doc_type_label,
-        message: `${doc.doc_type_label} — ${fmtDate(doc.signed_at)}\nVerificação: ${verUrl(doc)}`,
-        url: verUrl(doc),
-      });
+      if (doc.has_pdf) {
+        const localUri = await downloadPdfToCache(doc);
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          Alert.alert('Indisponível', 'Compartilhamento não disponível neste dispositivo.');
+          return;
+        }
+        await Sharing.shareAsync(localUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: doc.doc_type_label,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        // Fallback pra docs legacy
+        await WebBrowser.openBrowserAsync(validarUrl(doc));
+      }
     } catch (e) {
-      // usuário cancelou ou erro silencioso
+      Alert.alert('Erro ao compartilhar', e?.message || 'Tente novamente.');
+    } finally {
+      setBusyId(null);
     }
   };
 
-  // Loading / error
   if (loading) {
     return (
       <View style={s.container}>
@@ -137,14 +173,11 @@ export default function DocumentosScreen() {
     );
   }
 
-  // Filtro
   const filtered = filter === 'all' ? docs : docs.filter((d) => d.doc_type === filter);
-  // Mostra pills só se tiver > 5 docs (decisão UX)
   const showFilter = docs.length > 5;
 
   return (
     <View style={s.container}>
-      {/* Filtros (condicional > 5 docs) */}
       {showFilter && (
         <View style={s.filterBar}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
@@ -189,6 +222,7 @@ export default function DocumentosScreen() {
           filtered.map((doc) => {
             const summary = docSummary(doc);
             const modeLabel = doc.mode === 'digital' ? 'Versão Digital' : 'Papel Timbrado';
+            const isBusy = busyId === doc.id;
             return (
               <Card key={doc.id} padding={14} style={{ marginBottom: 10 }}>
                 <View style={s.docHeader}>
@@ -205,19 +239,32 @@ export default function DocumentosScreen() {
                 <View style={s.signRow}>
                   <Ionicons name="checkmark-circle" size={13} color="#10b981" />
                   <Text style={s.signText}>Assinado digitalmente · {modeLabel}</Text>
+                  {!doc.has_pdf && (
+                    <Text style={s.legacyTag}> · (somente validação)</Text>
+                  )}
                 </View>
                 <View style={s.actionRow}>
-                  <Pressable style={({ pressed }) => [s.btnPrimary, pressed && { opacity: 0.85 }]} onPress={() => handleVer(doc)}>
-                    <Ionicons name="eye-outline" size={14} color="#fff" />
-                    <Text style={s.btnPrimaryText}>Ver</Text>
+                  <Pressable
+                    style={({ pressed }) => [s.btnPrimary, (pressed || isBusy) && { opacity: 0.85 }]}
+                    onPress={() => handleVer(doc)}
+                    disabled={isBusy}
+                  >
+                    {isBusy ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="eye-outline" size={14} color="#fff" />
+                        <Text style={s.btnPrimaryText}>Ver</Text>
+                      </>
+                    )}
                   </Pressable>
-                  <Pressable style={({ pressed }) => [s.btnSecondary, pressed && { opacity: 0.85 }]} onPress={() => handleExportar(doc)}>
-                    <Ionicons name="download-outline" size={14} color={Warm.accentDeep} />
-                    <Text style={s.btnSecondaryText}>Exportar</Text>
-                  </Pressable>
-                  <Pressable style={({ pressed }) => [s.btnSecondary, pressed && { opacity: 0.85 }]} onPress={() => handleCompartilhar(doc)}>
+                  <Pressable
+                    style={({ pressed }) => [s.btnSecondary, (pressed || isBusy) && { opacity: 0.85 }]}
+                    onPress={() => handleCompartilhar(doc)}
+                    disabled={isBusy}
+                  >
                     <Ionicons name="share-outline" size={14} color={Warm.accentDeep} />
-                    <Text style={s.btnSecondaryText}>Compartilhar</Text>
+                    <Text style={s.btnSecondaryText}>{doc.has_pdf ? 'Compartilhar' : 'Validação'}</Text>
                   </Pressable>
                 </View>
               </Card>
@@ -232,46 +279,39 @@ export default function DocumentosScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f6f7fb' },
 
-  // Loader / error
   loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   errText: { fontSize: 13, color: Status.slate, fontFamily: Fonts.ui, textAlign: 'center', lineHeight: 18 },
   retryBtn: { paddingHorizontal: 16, paddingVertical: 9, backgroundColor: Warm.accentDeep, borderRadius: 8, marginTop: 8 },
   retryText: { color: '#fff', fontFamily: Fonts.uiBold, fontSize: 12 },
 
-  // Filter pills
   filterBar: { paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: Status.borderSoft },
-  pill: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: '#f1f5f9', borderRadius: 16,
-  },
+  pill: { paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#f1f5f9', borderRadius: 16 },
   pillActive: { backgroundColor: Warm.accentDeep },
   pillText: { fontFamily: Fonts.uiSemibold, fontSize: 12, color: Status.slate },
   pillTextActive: { color: '#fff', fontFamily: Fonts.uiBold },
 
-  // Doc card
   docHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   docTitle: { fontFamily: Fonts.uiHeavy, fontSize: 14, color: Status.ink },
   docMeta: { fontFamily: Fonts.ui, fontSize: 11, color: Status.slate, marginTop: 2 },
   docSummary: { fontFamily: Fonts.uiSemibold, fontSize: 12, color: Status.ink, marginTop: 8, marginLeft: 30 },
-  signRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, marginLeft: 30 },
+  signRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, marginLeft: 30, flexWrap: 'wrap' },
   signText: { fontFamily: Fonts.ui, fontSize: 10.5, color: Status.slate },
+  legacyTag: { fontFamily: Fonts.ui, fontSize: 10, color: Status.slate, fontStyle: 'italic' },
 
-  // Actions
-  actionRow: { flexDirection: 'row', gap: 6, marginTop: 12, flexWrap: 'wrap' },
+  actionRow: { flexDirection: 'row', gap: 6, marginTop: 12 },
   btnPrimary: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: Warm.accentDeep, paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 8, flex: 1, justifyContent: 'center',
+    backgroundColor: Warm.accentDeep, paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 8, flex: 1, justifyContent: 'center', minHeight: 36,
   },
   btnPrimaryText: { color: '#fff', fontFamily: Fonts.uiBold, fontSize: 12 },
   btnSecondary: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: Warm.accentSoft, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8, flex: 1, justifyContent: 'center',
+    backgroundColor: Warm.accentSoft, paddingHorizontal: 12, paddingVertical: 9,
+    borderRadius: 8, flex: 1, justifyContent: 'center', minHeight: 36,
   },
   btnSecondaryText: { color: Warm.accentDeep, fontFamily: Fonts.uiBold, fontSize: 12 },
 
-  // Empty state
   emptyState: { alignItems: 'center', gap: 8 },
   emptyTitle: { fontFamily: Fonts.uiHeavy, fontSize: 14, color: Status.ink, marginTop: 6 },
   emptyText: {
