@@ -1,10 +1,45 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from 'react-native';
+import { Text, View, StyleSheet, AppState } from 'react-native';
 import { Colors } from '../../services/theme';
-import { getUser } from '../../services/api';
+import { api, getUser } from '../../services/api';
 import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
+
+// Badge custom pro Tab de Chat (lê /api/chat/patients e soma unread)
+function ChatTabIcon({ color, size }) {
+  const [count, setCount] = useState(0);
+  const appState = useRef(AppState.currentState);
+
+  const reload = useCallback(async () => {
+    try {
+      const list = await api('/api/chat/patients');
+      const total = (list || []).reduce((acc, p) => acc + (p.unread || 0), 0);
+      setCount(total);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    reload();
+    const interval = setInterval(reload, 30000);
+    const sub = AppState.addEventListener('change', (next) => {
+      if (appState.current.match(/inactive|background/) && next === 'active') reload();
+      appState.current = next;
+    });
+    return () => { clearInterval(interval); sub.remove(); };
+  }, [reload]);
+
+  return (
+    <View>
+      <Ionicons name="chatbubbles" size={size} color={color} />
+      {count > 0 && (
+        <View style={iconStyles.badge}>
+          <Text style={iconStyles.badgeText}>{count > 99 ? '99+' : String(count)}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function MedicoLayout() {
   const user = getUser();
@@ -42,6 +77,11 @@ export default function MedicoLayout() {
         headerTitle: 'Prontuário',
         tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
       }} />
+      <Tabs.Screen name="chat" options={{
+        title: 'Chat',
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => <ChatTabIcon color={color} size={size} />,
+      }} />
       <Tabs.Screen name="perfil" options={{
         title: 'Perfil',
         headerTitle: 'Meu Perfil',
@@ -50,4 +90,17 @@ export default function MedicoLayout() {
     </Tabs>
   );
 }
+
+const iconStyles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -4, right: -10,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#dc2626',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2, borderColor: '#fff',
+  },
+  badgeText: { color: '#fff', fontWeight: '700', fontSize: 9.5, lineHeight: 11 },
+});
 

@@ -9,6 +9,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
+import { pickAndUploadChatImage } from '../../services/chatImage';
+import ChatImage from '../../components/chat/ChatImage';
 
 const STATE_COLORS = {
   ACTIVE: '#10b981',
@@ -146,6 +148,24 @@ export default function ChatScreen() {
     }
   };
 
+  const sendImage = async () => {
+    if (sending) return;
+    const imageKey = await pickAndUploadChatImage();
+    if (!imageKey) return;
+    setSending(true);
+    const tempId = `temp-${Date.now()}`;
+    setData(d => ({ ...d, messages: [...(d?.messages || []), { id: tempId, from_type: 'patient', image_url: imageKey, created_at: new Date().toISOString(), _pending: true }] }));
+    try {
+      const real = await api('/api/my-chat/messages', { method: 'POST', body: JSON.stringify({ image_url: imageKey }) });
+      setData(d => ({ ...d, messages: (d.messages || []).map(m => m.id === tempId ? real : m) }));
+    } catch (e) {
+      setData(d => ({ ...d, messages: (d.messages || []).map(m => m.id === tempId ? { ...m, _failed: true, _pending: false } : m) }));
+      Alert.alert('Não foi possível enviar', e?.message || 'Tente novamente.');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const acceptDisclaimer = async () => {
     setAcceptingDisclaimer(true);
     try {
@@ -273,6 +293,7 @@ export default function ChatScreen() {
               )}
               <View style={[s.bubbleRow, fromMe ? s.bubbleRowMe : s.bubbleRowOther]}>
                 <View style={[s.bubble, fromMe ? s.bubbleMe : s.bubbleOther, m._failed && { opacity: 0.5 }]}>
+                  {!!m.image_url && <ChatImage imageKey={m.image_url} maxWidth={220} />}
                   {!!m.message && <Text style={[s.bubbleText, fromMe ? s.bubbleTextMe : s.bubbleTextOther]}>{m.message}</Text>}
                   <View style={s.bubbleMeta}>
                     <Text style={[s.bubbleTime, fromMe ? s.bubbleTimeMe : s.bubbleTimeOther]}>
@@ -300,6 +321,14 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
         <View style={[s.inputArea, { paddingBottom: insets.bottom + 8 }]}>
+          <Pressable
+            onPress={sendImage}
+            disabled={sending}
+            style={({ pressed }) => [s.attachBtn, pressed && { opacity: 0.6 }]}
+            hitSlop={8}
+          >
+            <Ionicons name="image-outline" size={22} color={Warm.accentDeep} />
+          </Pressable>
           <TextInput
             style={s.input}
             placeholder="Digite uma mensagem..."
@@ -403,7 +432,8 @@ const s = StyleSheet.create({
   urgencyBarText: { fontFamily: Fonts.uiBold, fontSize: 11.5, color: '#dc2626' },
 
   // Input
-  inputArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 10, paddingTop: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  inputArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingHorizontal: 10, paddingTop: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  attachBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, fontFamily: Fonts.ui, fontSize: 14, color: Status.ink, backgroundColor: '#f3f4f6', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, maxHeight: 120, minHeight: 38 },
   sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Warm.accentDeep, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: '#cbd5e1' },
