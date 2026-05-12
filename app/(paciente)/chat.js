@@ -250,7 +250,7 @@ export default function ChatScreen() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.doctorName} numberOfLines={1}>{doctor.name}</Text>
               <Text style={s.doctorMeta} numberOfLines={1}>
-                {doctor.crm ? `CRM-${doctor.crm_uf || 'TO'} ${doctor.crm}` : 'Sua médica'}
+                {doctor.crm ? `CRM-${doctor.crm_uf || 'TO'} ${doctor.crm}` : 'Seu médico'}
               </Text>
             </View>
           </View>
