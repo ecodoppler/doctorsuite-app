@@ -61,6 +61,12 @@ function TabsInner() {
         href: obstHref,
         tabBarIcon: ({ color, size }) => <Ionicons name="pulse" size={size} color={color} />,
       }} />
+      <Tabs.Screen name="chat" options={{
+        title: 'Chat',
+        headerShown: false,
+        href: obstHref,
+        tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
+      }} />
       <Tabs.Screen name="exames" options={{
         title: 'Exames',
         headerShown: false,
