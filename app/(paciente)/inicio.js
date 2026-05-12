@@ -11,20 +11,27 @@ import Chip from '../../components/pregnancy/Chip';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
 import { Fonts, Status, Warm } from '../../services/theme';
 import { usePregnancy } from '../../services/pregnancy-context';
+import { useNotifications } from '../../services/notifications-context';
 
 const firstName = (full) => (full || '').trim().split(' ')[0] || '';
 
-// Sino de notificações — usado nos 2 estados (gestante/não-gestante).
-// Por enquanto sem badge funcional; click leva ao placeholder /notificacoes.
+// Sino com badge funcional. Lê unreadCount do NotificationsContext.
 function NotificationBell({ onPress, color = Warm.accentDeep }) {
+  const { unreadCount } = useNotifications();
+  const showBadge = unreadCount > 0;
   return (
     <Pressable
       onPress={onPress}
       hitSlop={10}
       style={({ pressed }) => [s.bellBtn, pressed && { opacity: 0.6 }]}
-      accessibilityLabel="Notificações"
+      accessibilityLabel={showBadge ? `${unreadCount} notificações não lidas` : 'Notificações'}
     >
       <Ionicons name="notifications-outline" size={22} color={color} />
+      {showBadge && (
+        <View style={s.bellBadge}>
+          <Text style={s.bellBadgeText}>{unreadCount > 99 ? '99+' : String(unreadCount)}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -477,6 +484,22 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center', justifyContent: 'center',
     marginRight: 8,
+    position: 'relative',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 4, right: 4,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#dc2626',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)',
+  },
+  bellBadgeText: {
+    color: '#fff',
+    fontFamily: Fonts.uiBold,
+    fontSize: 9.5,
+    lineHeight: 11,
   },
 
   // v0.0.100 — Hub não-gestante

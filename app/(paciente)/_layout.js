@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
 import { PregnancyProvider, usePregnancy } from '../../services/pregnancy-context';
+import { NotificationsProvider } from '../../services/notifications-context';
 
 function TabsInner() {
   const user = getUser();
@@ -88,8 +89,10 @@ function TabsInner() {
 
 export default function PacienteLayout() {
   return (
-    <PregnancyProvider>
-      <TabsInner />
-    </PregnancyProvider>
+    <NotificationsProvider>
+      <PregnancyProvider>
+        <TabsInner />
+      </PregnancyProvider>
+    </NotificationsProvider>
   );
 }
