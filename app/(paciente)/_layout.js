@@ -1,13 +1,22 @@
-import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
+import { PregnancyProvider, usePregnancy } from '../../services/pregnancy-context';
 
-export default function PacienteLayout() {
+function TabsInner() {
   const user = getUser();
   const clinicName = user?.clinic_name || '';
+  const { data, loading } = usePregnancy();
+
+  // Enquanto carrega, esconde tabs obstétricas (evita "flash" + click acidental).
+  // Quando data está null por erro, também trata como não-gestante.
+  const hasPregnancy = !!data?.pregnancy;
+  const obstHref = hasPregnancy ? undefined : null;
+  // Documentos vira tab visível quando não-gestante (vira atalho central).
+  // Quando gestante, fica acessível via push (atalhos do início).
+  const docsHref = hasPregnancy ? null : undefined;
 
   return (
     <Tabs screenOptions={{
@@ -31,6 +40,7 @@ export default function PacienteLayout() {
       <Tabs.Screen name="prenatal" options={{
         title: 'Pré-natal',
         headerShown: false,
+        href: obstHref,
         tabBarIcon: ({ color, size }) => <Ionicons name="pulse" size={size} color={color} />,
       }} />
       <Tabs.Screen name="exames" options={{
@@ -40,14 +50,17 @@ export default function PacienteLayout() {
       }} />
       <Tabs.Screen name="exame-detalhe" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="alertas" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="notificacoes" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="vacinas" options={{
         title: 'Vacinas',
         headerShown: false,
+        href: obstHref,
         tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
       }} />
       <Tabs.Screen name="plano" options={{
         title: 'Plano',
         headerShown: false,
+        href: obstHref,
         tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" size={size} color={color} />,
       }} />
       <Tabs.Screen name="agendamentos" options={{
@@ -59,8 +72,10 @@ export default function PacienteLayout() {
         headerTitle: 'Meus Laudos',
       }} />
       <Tabs.Screen name="documentos" options={{
-        href: null,
+        title: 'Documentos',
+        href: docsHref,
         headerTitle: 'Meus Documentos',
+        tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
       }} />
       <Tabs.Screen name="perfil" options={{
         title: 'Perfil',
@@ -68,5 +83,13 @@ export default function PacienteLayout() {
         tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} />,
       }} />
     </Tabs>
+  );
+}
+
+export default function PacienteLayout() {
+  return (
+    <PregnancyProvider>
+      <TabsInner />
+    </PregnancyProvider>
   );
 }

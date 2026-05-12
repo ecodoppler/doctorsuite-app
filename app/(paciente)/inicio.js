@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,35 +9,37 @@ import RiskBadge from '../../components/pregnancy/RiskBadge';
 import ProgressRing from '../../components/pregnancy/ProgressRing';
 import Chip from '../../components/pregnancy/Chip';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
-import { api } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
+import { usePregnancy } from '../../services/pregnancy-context';
 
 const firstName = (full) => (full || '').trim().split(' ')[0] || '';
+
+// Sino de notificações — usado nos 2 estados (gestante/não-gestante).
+// Por enquanto sem badge funcional; click leva ao placeholder /notificacoes.
+function NotificationBell({ onPress, color = Warm.accentDeep }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      style={({ pressed }) => [s.bellBtn, pressed && { opacity: 0.6 }]}
+      accessibilityLabel="Notificações"
+    >
+      <Ionicons name="notifications-outline" size={22} color={color} />
+    </Pressable>
+  );
+}
 
 export default function InicioScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error: err, reload } = usePregnancy();
   const [refreshing, setRefreshing] = useState(false);
-  const [err, setErr] = useState(null);
 
-  const load = useCallback(async () => {
-    try {
-      setErr(null);
-      const d = await api('/api/my-pregnancy');
-      setData(d);
-    } catch (e) {
-      setErr(e?.message || 'Falha ao carregar');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  };
 
   // Loading inicial
   if (loading) {
@@ -57,7 +59,7 @@ export default function InicioScreen() {
         <View style={[s.loaderWrap, { padding: 24 }]}>
           <Ionicons name="cloud-offline-outline" size={40} color={Status.slate} />
           <Text style={s.errText}>Não foi possível carregar.{'\n'}{err}</Text>
-          <Pressable onPress={() => { setLoading(true); load(); }} style={s.retryBtn}>
+          <Pressable onPress={reload} style={s.retryBtn}>
             <Text style={s.retryText}>Tentar de novo</Text>
           </Pressable>
         </View>
@@ -67,21 +69,83 @@ export default function InicioScreen() {
 
   const patient = data?.patient || {};
   const pregnancy = data?.pregnancy;
+  const nextAppointment = data?.nextAppointment || null;
 
-  // Sem gestação ativa
+  // ─── Sem gestação ativa: hub com acesso rápido ───
   if (!pregnancy) {
+    const ACTIONS = [
+      { key: 'agendamentos', label: 'Consultas', icon: 'calendar-outline', target: '/(paciente)/agendamentos' },
+      { key: 'laudos',       label: 'Laudos',    icon: 'document-text-outline', target: '/(paciente)/laudos' },
+      { key: 'documentos',   label: 'Documentos',icon: 'shield-checkmark-outline', target: '/(paciente)/documentos' },
+      { key: 'perfil',       label: 'Perfil',    icon: 'person-circle-outline', target: '/(paciente)/perfil' },
+    ];
     return (
       <LinearGradient colors={Warm.coverGradient} locations={Warm.coverGradientStops} style={s.gradient}>
         <ScrollView
-          contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 100, flexGrow: 1, justifyContent: 'center' }}
+          contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Warm.accentDeep} />}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={s.emptyWrap}>
-            <Ionicons name="heart-outline" size={48} color={Warm.accentDeep} />
-            <Text style={s.emptyTitle}>Sem gestação ativa</Text>
-            <Text style={s.emptySub}>
-              {patient.name ? `Olá, ${firstName(patient.name)}.\n` : ''}
-              Quando o seu médico iniciar uma nova gestação, o seu cartão aparecerá aqui.
+          {/* Header: saudação + sino */}
+          <View style={s.hubHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.hubEyebrow}>Olá, {firstName(patient.name) || 'paciente'} 👋</Text>
+              <Text style={s.hubGreeting}>Seu cartão</Text>
+            </View>
+            <NotificationBell onPress={() => router.push('/(paciente)/notificacoes')} />
+          </View>
+
+          {/* Próxima consulta */}
+          {nextAppointment ? (
+            <Pressable
+              style={({ pressed }) => [s.nextCard, pressed && { opacity: 0.85 }]}
+              onPress={() => router.push('/(paciente)/agendamentos')}
+            >
+              <View style={s.nextIcon}>
+                <Ionicons name="calendar" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.nextEyebrow}>Próxima consulta</Text>
+                <Text style={s.nextWhen}>
+                  {nextAppointment.date}{nextAppointment.time ? ` · ${nextAppointment.time}` : ''}
+                </Text>
+                <Text style={s.nextWho} numberOfLines={1}>
+                  {nextAppointment.kind}{nextAppointment.who ? ` · ${nextAppointment.who}` : ''}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Status.slate} />
+            </Pressable>
+          ) : (
+            <Card padding={14} style={{ marginHorizontal: 16, marginTop: 16 }}>
+              <View style={s.noNextRow}>
+                <Ionicons name="calendar-outline" size={20} color={Status.slate} />
+                <Text style={s.noNextText}>Nenhuma consulta agendada</Text>
+              </View>
+            </Card>
+          )}
+
+          {/* Grid 2x2 de ações */}
+          <SectionTitle style={{ marginTop: 18 }}>Acesso rápido</SectionTitle>
+          <View style={s.actionsGrid}>
+            {ACTIONS.map((a) => (
+              <Pressable
+                key={a.key}
+                style={({ pressed }) => [s.actionCard, pressed && { opacity: 0.85 }]}
+                onPress={() => router.push(a.target)}
+              >
+                <View style={s.actionIconWrap}>
+                  <Ionicons name={a.icon} size={26} color={Warm.accentDeep} />
+                </View>
+                <Text style={s.actionLabel}>{a.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Mensagem discreta */}
+          <View style={s.hubFootnote}>
+            <Ionicons name="heart-outline" size={14} color={Status.slate} />
+            <Text style={s.hubFootnoteText}>
+              Quando seu médico iniciar uma nova gestação, o cartão da gestante aparecerá aqui.
             </Text>
           </View>
         </ScrollView>
@@ -115,6 +179,7 @@ export default function InicioScreen() {
             <Text style={s.eyebrow}>Cartão da Gestante</Text>
             <Text style={s.greeting}>Olá, {firstName(patient.name)}</Text>
           </View>
+          <NotificationBell onPress={() => router.push('/(paciente)/notificacoes')} />
           <View style={s.avatar}>
             <Text style={s.avatarText}>{patient.initials}</Text>
           </View>
@@ -405,4 +470,64 @@ const s = StyleSheet.create({
   alertTitle: { fontSize: 12, color: '#991b1b', fontFamily: Fonts.uiHeavy },
   alertSub: { fontSize: 10.5, color: '#7f1d1d', fontFamily: Fonts.ui, marginTop: 2 },
   alertChev: { color: '#991b1b', fontFamily: Fonts.uiHeavy, fontSize: 18 },
+
+  // v0.0.100 — Sino de notificações
+  bellBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 8,
+  },
+
+  // v0.0.100 — Hub não-gestante
+  hubHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 },
+  hubEyebrow: { fontSize: 13, color: Status.slate, fontFamily: Fonts.uiSemibold },
+  hubGreeting: { fontFamily: Fonts.display, fontSize: 28, lineHeight: 32, color: Warm.rose, marginTop: 2 },
+
+  nextCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginTop: 14,
+    backgroundColor: '#fff',
+    borderRadius: 16, padding: 14,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  nextIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: Warm.accentDeep,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  nextEyebrow: { fontSize: 10.5, color: Status.slate, fontFamily: Fonts.uiBold, letterSpacing: 0.4, textTransform: 'uppercase' },
+  nextWhen: { fontFamily: Fonts.uiHeavy, fontSize: 15, color: Status.ink, marginTop: 2 },
+  nextWho: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, marginTop: 2 },
+  noNextRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  noNextText: { fontSize: 13, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic' },
+
+  actionsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: 12, marginTop: 4,
+  },
+  actionCard: {
+    width: '50%', padding: 4,
+    alignItems: 'stretch',
+  },
+  actionIconWrap: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 22,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 6,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  actionLabel: {
+    fontFamily: Fonts.uiBold, fontSize: 13, color: Status.ink, textAlign: 'center',
+  },
+
+  hubFootnote: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 24, paddingTop: 22, paddingBottom: 12,
+    justifyContent: 'center',
+  },
+  hubFootnoteText: { fontSize: 11.5, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic', textAlign: 'center', flex: 1 },
 });
