@@ -10,6 +10,15 @@ import { api, getUser } from '../../../services/api';
 import { Colors } from '../../../services/theme';
 import { pickAndUploadChatImage } from '../../../services/chatImage';
 import ChatImage from '../../../components/chat/ChatImage';
+import ChatTemplatesModal from '../../../components/chat/ChatTemplatesModal';
+
+// Verifica se nota interna ainda é editável (24h pós criação)
+function canEditNote(msg, myId) {
+  if (msg.note_type !== 'internal') return false;
+  if (msg.from_user_id !== myId) return false;
+  const created = new Date(msg.created_at);
+  return (Date.now() - created.getTime()) < 24 * 3600 * 1000;
+}
 
 function fmtTime(iso) {
   if (!iso) return '';
@@ -29,6 +38,11 @@ export default function ChatConversation() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  // v0.0.108: notas internas + templates
+  const [internalMode, setInternalMode] = useState(false);     // próxima msg será nota interna?
+  const [hideNotes, setHideNotes] = useState(false);           // esconde balões amarelos no fluxo
+  const [editingNote, setEditingNote] = useState(null);        // { id, message }
+  const [showTemplates, setShowTemplates] = useState(false);   // modal templates aberto?
   const scrollRef = useRef(null);
   const pollTimer = useRef(null);
   const myId = getUser()?.id;
@@ -61,18 +75,61 @@ export default function ChatConversation() {
     if (!msg || sending) return;
     setSending(true);
     setText('');
+    const isInternal = internalMode;
     const tempId = `temp-${Date.now()}`;
-    const tempMsg = { id: tempId, from_user_id: myId, from_type: 'user', message: msg, created_at: new Date().toISOString(), _pending: true };
+    const tempMsg = {
+      id: tempId, from_user_id: myId, from_type: 'user',
+      message: msg, note_type: isInternal ? 'internal' : 'normal',
+      created_at: new Date().toISOString(), _pending: true
+    };
     setMessages(prev => [...prev, tempMsg]);
     try {
-      const real = await api(`/api/chat/patients/${patientId}/messages`, { method: 'POST', body: JSON.stringify({ message: msg }) });
+      const body = { message: msg };
+      if (isInternal) body.note_type = 'internal';
+      const real = await api(`/api/chat/patients/${patientId}/messages`, { method: 'POST', body: JSON.stringify(body) });
       setMessages(prev => prev.map(m => m.id === tempId ? real : m));
+      setInternalMode(false); // resetar após enviar
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true, _pending: false } : m));
       Alert.alert('Não enviado', e?.message || 'Tente novamente.');
     } finally {
       setSending(false);
     }
+  };
+
+  // v0.0.108: edição de nota interna
+  const saveEditNote = async () => {
+    if (!editingNote || !editingNote.message.trim()) return;
+    try {
+      await api(`/api/chat/patients/${patientId}/messages/${editingNote.id}`, {
+        method: 'PUT', body: JSON.stringify({ message: editingNote.message.trim() }),
+      });
+      setMessages(prev => prev.map(m => m.id === editingNote.id ? { ...m, message: editingNote.message.trim() } : m));
+      setEditingNote(null);
+    } catch (e) { Alert.alert('Erro', e?.message || 'Não foi possível salvar.'); }
+  };
+
+  const deleteNote = (noteId) => {
+    Alert.alert('Excluir nota?', 'Esta nota interna será removida permanentemente.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: async () => {
+        try {
+          await api(`/api/chat/patients/${patientId}/messages/${noteId}`, { method: 'DELETE' });
+          setMessages(prev => prev.filter(m => m.id !== noteId));
+        } catch (e) { Alert.alert('Erro', e?.message || 'Não foi possível excluir.'); }
+      }},
+    ]);
+  };
+
+  // v0.0.108: insere template no input (substitui variáveis via backend)
+  const applyTemplate = async (tpl) => {
+    try {
+      const r = await api(`/api/chat-templates/preview?text=${encodeURIComponent(tpl.body)}&patient_id=${patientId}`);
+      setText(r.expanded || tpl.body);
+    } catch {
+      setText(tpl.body);
+    }
+    setShowTemplates(false);
   };
 
   const sendImage = async () => {
@@ -146,6 +203,14 @@ export default function ChatConversation() {
           <Text style={s.headerName} numberOfLines={1}>{patientName}</Text>
           <Text style={s.headerMeta}>Toque para ver prontuário</Text>
         </View>
+        <Pressable
+          onPress={() => setHideNotes(!hideNotes)}
+          hitSlop={10}
+          style={s.menuBtn}
+          accessibilityLabel={hideNotes ? 'Mostrar notas internas' : 'Esconder notas internas'}
+        >
+          <Ionicons name={hideNotes ? 'eye-off-outline' : 'eye-outline'} size={20} color={hideNotes ? '#f59e0b' : Colors.textMuted} />
+        </Pressable>
         <Pressable onPress={() => setShowActions(true)} hitSlop={10} style={s.menuBtn}>
           <Ionicons name="ellipsis-vertical" size={20} color={Colors.text} />
         </Pressable>
@@ -165,10 +230,12 @@ export default function ChatConversation() {
               <Ionicons name="chatbubbles-outline" size={36} color={Colors.primary} />
               <Text style={s.welcomeText}>Nenhuma mensagem ainda</Text>
             </View>
-          ) : messages.map((m, idx) => {
+          ) : messages.filter(m => !hideNotes || m.note_type !== 'internal').map((m, idx, arr) => {
             const fromMe = m.from_type === 'user' && (m.from_user_id === myId || !m.from_type);
-            const prev = idx > 0 ? messages[idx - 1] : null;
+            const isInternal = m.note_type === 'internal';
+            const prev = idx > 0 ? arr[idx - 1] : null;
             const showDate = !prev || new Date(m.created_at).toDateString() !== new Date(prev.created_at).toDateString();
+            const editable = canEditNote(m, myId);
             return (
               <View key={m.id}>
                 {showDate && (
@@ -178,23 +245,50 @@ export default function ChatConversation() {
                     </Text>
                   </View>
                 )}
-                <View style={[s.bubbleRow, fromMe ? s.bubbleRowMe : s.bubbleRowOther]}>
-                  <View style={[s.bubble, fromMe ? s.bubbleMe : s.bubbleOther, m._failed && { opacity: 0.5 }]}>
-                    {!!m.image_url && <ChatImage imageKey={m.image_url} maxWidth={220} />}
-                    {!!m.message && (
-                      <Text style={[s.bubbleText, fromMe ? s.bubbleTextMe : s.bubbleTextOther]}>{m.message}</Text>
-                    )}
-                    <View style={s.bubbleMeta}>
-                      <Text style={[s.bubbleTime, fromMe ? s.bubbleTimeMe : s.bubbleTimeOther]}>{fmtTime(m.created_at)}</Text>
-                      {fromMe && (
-                        m._pending ? <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
-                        : m._failed ? <Ionicons name="alert-circle" size={11} color="#fca5a5" style={{ marginLeft: 4 }} />
-                        : m.read ? <Ionicons name="checkmark-done" size={12} color="#a7f3d0" style={{ marginLeft: 4 }} />
-                        : <Ionicons name="checkmark" size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+                {/* Nota interna: largura cheia, fundo amarelo */}
+                {isInternal ? (
+                  <Pressable
+                    onLongPress={editable ? () => setEditingNote({ id: m.id, message: m.message }) : undefined}
+                    style={s.noteRow}
+                  >
+                    <View style={s.noteBubble}>
+                      <View style={s.noteHeader}>
+                        <Ionicons name="document-text-outline" size={13} color="#92400e" />
+                        <Text style={s.noteHeaderText}>NOTA INTERNA · só você vê</Text>
+                        {editable && (
+                          <Pressable hitSlop={6} onPress={() => setEditingNote({ id: m.id, message: m.message })} style={{ padding: 2 }}>
+                            <Ionicons name="create-outline" size={14} color="#92400e" />
+                          </Pressable>
+                        )}
+                        {editable && (
+                          <Pressable hitSlop={6} onPress={() => deleteNote(m.id)} style={{ padding: 2 }}>
+                            <Ionicons name="trash-outline" size={14} color="#dc2626" />
+                          </Pressable>
+                        )}
+                      </View>
+                      <Text style={s.noteText}>{m.message}</Text>
+                      <Text style={s.noteTime}>{fmtTime(m.created_at)}</Text>
+                    </View>
+                  </Pressable>
+                ) : (
+                  <View style={[s.bubbleRow, fromMe ? s.bubbleRowMe : s.bubbleRowOther]}>
+                    <View style={[s.bubble, fromMe ? s.bubbleMe : s.bubbleOther, m._failed && { opacity: 0.5 }]}>
+                      {!!m.image_url && <ChatImage imageKey={m.image_url} maxWidth={220} />}
+                      {!!m.message && (
+                        <Text style={[s.bubbleText, fromMe ? s.bubbleTextMe : s.bubbleTextOther]}>{m.message}</Text>
                       )}
+                      <View style={s.bubbleMeta}>
+                        <Text style={[s.bubbleTime, fromMe ? s.bubbleTimeMe : s.bubbleTimeOther]}>{fmtTime(m.created_at)}</Text>
+                        {fromMe && (
+                          m._pending ? <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+                          : m._failed ? <Ionicons name="alert-circle" size={11} color="#fca5a5" style={{ marginLeft: 4 }} />
+                          : m.read ? <Ionicons name="checkmark-done" size={12} color="#a7f3d0" style={{ marginLeft: 4 }} />
+                          : <Ionicons name="checkmark" size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+                        )}
+                      </View>
                     </View>
                   </View>
-                </View>
+                )}
               </View>
             );
           })}
@@ -202,13 +296,29 @@ export default function ChatConversation() {
       )}
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* Banner indicando modo nota interna */}
+        {internalMode && (
+          <View style={s.internalBanner}>
+            <Ionicons name="document-text" size={14} color="#92400e" />
+            <Text style={s.internalBannerText}>Próxima mensagem será nota interna (paciente não vê)</Text>
+            <Pressable onPress={() => setInternalMode(false)} hitSlop={8}>
+              <Ionicons name="close" size={16} color="#92400e" />
+            </Pressable>
+          </View>
+        )}
         <View style={[s.inputArea, { paddingBottom: insets.bottom + 8 }]}>
-          <Pressable onPress={sendImage} disabled={sending} style={({ pressed }) => [s.attachBtn, pressed && { opacity: 0.6 }]} hitSlop={8}>
+          <Pressable onPress={sendImage} disabled={sending || internalMode} style={({ pressed }) => [s.attachBtn, (pressed || internalMode) && { opacity: 0.4 }]} hitSlop={8}>
             <Ionicons name="image-outline" size={22} color={Colors.primary} />
           </Pressable>
+          <Pressable onPress={() => setShowTemplates(true)} disabled={sending} style={({ pressed }) => [s.attachBtn, pressed && { opacity: 0.6 }]} hitSlop={8}>
+            <Ionicons name="reader-outline" size={22} color={Colors.primary} />
+          </Pressable>
+          <Pressable onPress={() => setInternalMode(!internalMode)} disabled={sending} style={({ pressed }) => [s.attachBtn, pressed && { opacity: 0.6 }]} hitSlop={8}>
+            <Ionicons name={internalMode ? 'document-text' : 'document-text-outline'} size={22} color={internalMode ? '#f59e0b' : Colors.primary} />
+          </Pressable>
           <TextInput
-            style={s.input}
-            placeholder="Digite uma mensagem..."
+            style={[s.input, internalMode && { backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1 }]}
+            placeholder={internalMode ? 'Nota interna (paciente não vê)...' : 'Digite uma mensagem...'}
             placeholderTextColor={Colors.textMuted}
             value={text}
             onChangeText={setText}
@@ -218,13 +328,48 @@ export default function ChatConversation() {
           />
           <Pressable
             onPress={send}
-            style={({ pressed }) => [s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [s.sendBtn, internalMode && { backgroundColor: '#f59e0b' }, (!text.trim() || sending) && s.sendBtnDisabled, pressed && { opacity: 0.7 }]}
             disabled={!text.trim() || sending}
           >
             {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* v0.0.108: Modal edição de nota interna */}
+      <Modal visible={!!editingNote} transparent animationType="fade" onRequestClose={() => setEditingNote(null)}>
+        <View style={s.editModalBackdrop}>
+          <View style={s.editCard}>
+            <View style={s.editHeader}>
+              <Ionicons name="document-text" size={20} color="#92400e" />
+              <Text style={s.editTitle}>Editar nota interna</Text>
+            </View>
+            <TextInput
+              style={s.editInput}
+              value={editingNote?.message || ''}
+              onChangeText={(t) => setEditingNote(prev => ({ ...prev, message: t }))}
+              multiline
+              autoFocus
+              maxLength={4000}
+            />
+            <View style={s.editActions}>
+              <Pressable onPress={() => setEditingNote(null)} style={s.editCancelBtn}>
+                <Text style={s.editCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable onPress={saveEditNote} style={s.editSaveBtn}>
+                <Text style={s.editSaveText}>Salvar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* v0.0.108: Modal templates rápidos */}
+      <ChatTemplatesModal
+        visible={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onPick={applyTemplate}
+      />
 
       <Modal visible={showActions} transparent animationType="fade" onRequestClose={() => setShowActions(false)}>
         <Pressable style={s.actionsBackdrop} onPress={() => setShowActions(false)}>
@@ -285,11 +430,35 @@ const s = StyleSheet.create({
   bubbleTimeMe: { color: 'rgba(255,255,255,0.75)' },
   bubbleTimeOther: { color: Colors.textMuted },
 
-  inputArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingHorizontal: 10, paddingTop: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
-  attachBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  inputArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, paddingHorizontal: 8, paddingTop: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, fontSize: 14, color: Colors.text, backgroundColor: '#f3f4f6', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, maxHeight: 120, minHeight: 38 },
   sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: '#cbd5e1' },
+
+  // v0.0.108: Banner modo nota interna
+  internalBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fef3c7', borderTopWidth: 1, borderTopColor: '#fde68a', paddingHorizontal: 14, paddingVertical: 8 },
+  internalBannerText: { flex: 1, fontSize: 12, color: '#92400e', fontWeight: '600' },
+
+  // v0.0.108: Balão de nota interna (largura cheia, amarelo)
+  noteRow: { paddingHorizontal: 4, marginVertical: 4 },
+  noteBubble: { backgroundColor: '#fef3c7', borderLeftWidth: 3, borderLeftColor: '#f59e0b', borderRadius: 10, padding: 10 },
+  noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  noteHeaderText: { fontSize: 10.5, fontWeight: '700', color: '#92400e', textTransform: 'uppercase', letterSpacing: 0.3, flex: 1 },
+  noteText: { fontSize: 13.5, color: '#78350f', lineHeight: 18 },
+  noteTime: { fontSize: 10, color: '#92400e', marginTop: 4, fontStyle: 'italic' },
+
+  // v0.0.108: Modal edição de nota
+  editModalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  editCard: { backgroundColor: '#fff', borderRadius: 14, padding: 18, width: '100%', maxWidth: 380 },
+  editHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  editTitle: { fontSize: 15, fontWeight: '700', color: '#92400e' },
+  editInput: { borderWidth: 1, borderColor: '#fde68a', borderRadius: 10, padding: 12, fontSize: 14, color: Colors.text, backgroundColor: '#fffbeb', minHeight: 100, textAlignVertical: 'top' },
+  editActions: { flexDirection: 'row', marginTop: 14, gap: 10 },
+  editCancelBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 8 },
+  editCancelText: { fontWeight: '600', color: Colors.text },
+  editSaveBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: '#f59e0b', borderRadius: 8 },
+  editSaveText: { fontWeight: '700', color: '#fff' },
 
   actionsBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   actionsSheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, paddingBottom: 30 },
