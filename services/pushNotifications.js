@@ -78,3 +78,29 @@ export async function unregisterPushNotifications() {
     _pushToken = null;
   }
 }
+
+// v0.0.102: handler de toque em push notification.
+// Push payload (Expo) chega com data: { deep_link, notification_id, kind, ... }
+// Quando o usuário toca na notificação:
+//   1. Marca notification_id como lida (best-effort)
+//   2. Navega pra deep_link (relativo à área do usuário — paciente ou médico)
+// `baseRoute` = '/(paciente)' | '/(medico)'.
+export function setupNotificationTapHandler(router, baseRoute = '/(paciente)') {
+  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    try {
+      const data = response?.notification?.request?.content?.data || {};
+      const notifId = data.notification_id;
+      const deepLink = data.deep_link;
+      if (notifId) {
+        api(`/api/my-notifications/${notifId}/read`, { method: 'POST' }).catch(() => {});
+      }
+      if (deepLink) {
+        // Pequeno delay pra UI estar pronta (especialmente cold start)
+        setTimeout(() => {
+          try { router.push(`${baseRoute}${deepLink}`); } catch (e) { console.warn('[push tap nav]', e.message); }
+        }, 200);
+      }
+    } catch (e) { console.warn('[push tap handler]', e.message); }
+  });
+  return () => sub.remove();
+}

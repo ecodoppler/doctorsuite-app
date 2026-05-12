@@ -1,18 +1,22 @@
 import { useEffect } from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
-import { registerForPushNotifications } from '../../services/pushNotifications';
+import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
 
 export default function MedicoLayout() {
   const user = getUser();
   const clinicName = user?.clinic_name || '';
+  const router = useRouter();
 
   useEffect(() => {
     registerForPushNotifications();
-  }, []);
+    // v0.0.102: handler de toque na push — navega pro deep_link relativo
+    const cleanup = setupNotificationTapHandler(router, '/(medico)');
+    return cleanup;
+  }, [router]);
 
   return (
     <Tabs screenOptions={{

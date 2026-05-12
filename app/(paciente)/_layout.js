@@ -1,15 +1,32 @@
-import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
 import { PregnancyProvider, usePregnancy } from '../../services/pregnancy-context';
-import { NotificationsProvider } from '../../services/notifications-context';
+import { NotificationsProvider, useNotifications } from '../../services/notifications-context';
+import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
 
 function TabsInner() {
   const user = getUser();
   const clinicName = user?.clinic_name || '';
   const { data, loading } = usePregnancy();
+  const { reload: reloadNotifs } = useNotifications();
+  const router = useRouter();
+
+  // v0.0.102: registra push token + handler de toque (deep_link → tela relevante).
+  useEffect(() => {
+    registerForPushNotifications().catch(() => {});
+    const cleanup = setupNotificationTapHandler(router, '/(paciente)');
+    return cleanup;
+  }, [router]);
+
+  // Recarrega badge quando algo muda nas notificações (best-effort, sem polling agressivo)
+  useEffect(() => {
+    const interval = setInterval(() => reloadNotifs(), 60000);
+    return () => clearInterval(interval);
+  }, [reloadNotifs]);
 
   // Enquanto carrega, esconde tabs obstétricas (evita "flash" + click acidental).
   // Quando data está null por erro, também trata como não-gestante.
