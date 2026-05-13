@@ -148,13 +148,6 @@ export default function InicioScreen() {
             ))}
           </View>
 
-          {/* Mensagem discreta */}
-          <View style={s.hubFootnote}>
-            <Ionicons name="heart-outline" size={14} color={Status.slate} />
-            <Text style={s.hubFootnoteText}>
-              Quando seu médico iniciar uma nova gestação, o cartão da gestante aparecerá aqui.
-            </Text>
-          </View>
         </ScrollView>
       </LinearGradient>
     );

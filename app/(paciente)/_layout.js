@@ -32,6 +32,10 @@ function TabsInner() {
   // Quando data está null por erro, também trata como não-gestante.
   const hasPregnancy = !!data?.pregnancy;
   const obstHref = hasPregnancy ? undefined : null;
+  // v0.0.109: tab Chat segue estado do PRÓPRIO chat (não da gestação).
+  // Chat continua acessível durante puerpério (ACTIVE/CLOSING) mesmo com pregnancy=null.
+  const chatActive = ['ACTIVE', 'CLOSING'].includes(data?.chat?.state);
+  const chatHref = chatActive ? undefined : null;
   // Documentos vira tab visível quando não-gestante (vira atalho central).
   // Quando gestante, fica acessível via push (atalhos do início).
   const docsHref = hasPregnancy ? null : undefined;
@@ -64,7 +68,7 @@ function TabsInner() {
       <Tabs.Screen name="chat" options={{
         title: 'Chat',
         headerShown: false,
-        href: obstHref,
+        href: chatHref,
         tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
       }} />
       <Tabs.Screen name="exames" options={{
