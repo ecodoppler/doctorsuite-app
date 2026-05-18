@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DoctorSuite · Módulo Cartão da Gestante</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: Inter, system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="android-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="variation-a.jsx"></script>
+<script type="text/babel" src="variation-b.jsx"></script>
+<script type="text/babel" src="variation-final.jsx"></script>
+<script type="text/babel" src="pdf-preview.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect } = React;
+
+// ─── Wrappers that drop a screen into a phone frame with bottom nav ───
+function IOSScreen({ children, withNav = true, navActive = 0, dark = false }) {
+  return (
+    <IOSDevice width={390} height={844} dark={dark}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'hidden' }}>{children}</div>
+        {withNav && (
+          <div style={{ paddingBottom: 22 }}>
+            <VA_Nav active={navActive} />
+          </div>
+        )}
+      </div>
+    </IOSDevice>
+  );
+}
+
+function AndroidScreen({ children, withNav = true, navActive = 0 }) {
+  return (
+    <div style={{
+      width: 390, height: 844, borderRadius: 36, overflow: 'hidden',
+      background: '#f6f7fb',
+      border: '8px solid rgba(116,119,117,0.5)',
+      boxShadow: '0 30px 80px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Status bar (android style — minimal) */}
+      <div style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', fontFamily: 'Roboto, system-ui', fontSize: 13, fontWeight: 500, color: '#171d1b', background: 'transparent', position: 'relative' }}>
+        <span>11:18</span>
+        <div style={{ position: 'absolute', left: '50%', top: 8, transform: 'translateX(-50%)', width: 22, height: 22, borderRadius: 99, background: '#2e2e2e' }} />
+        <div style={{ display: 'flex', gap: 4, fontSize: 12 }}>
+          <span>📶</span><span>📡</span><span>🔋</span>
+        </div>
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden' }}>{children}</div>
+      {withNav && (
+        <div style={{ paddingBottom: 0 }}>
+          <VA_Nav active={navActive} />
+          {/* gesture nav */}
+          <div style={{ height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 108, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.4)' }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────
+const ART_W = 390 + 16;        // phone + label clearance
+const ART_H = 844 + 16;
+const PDF_W = 594 + 24;
+const PDF_H = 840 + 24;
+
+function App() {
+  return (
+    <DesignCanvas docTitle="Cartão da Gestante" docSubtitle="DoctorSuite App · módulo paciente">
+
+      <DCSection
+        id="vf-ios" title="✦ Versão Final (híbrida) — iOS"
+        subtitle="Bottom nav única (sem tabs duplicados no header). Início traz Paridade, Medicamentos, Comorbidades, Antecedentes e Intercorrências. Exames com labs por trimestre/sessão (datas distintas no mesmo trimestre), USG e ecocardiografia fetal — toque em um item com badge EVOLUÇÃO abre a tela com gráfico. Vacinas em tela própria.">
+        <DCArtboard id="vf-1" label="01 · Início" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 01 Início">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VF_Capa /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={0} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vf-2" label="02 · Pré-natal" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 02 Pré-natal">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VF_PreNatal /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={1} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vf-3" label="03 · Exames (lab + imagem)" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 03 Exames">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VF_Exames /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={2} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vf-3b" label="03b · Detalhe do exame (Hb)" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 03b Lab Detail">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VF_LabDetail labId="hemograma" /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={2} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vf-4" label="04 · Vacinas" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 04 Vacinas">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VF_Vacinas /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={3} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vf-5" label="05 · Plano de parto" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 05 Plano">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VF_Plano /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={4} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vf-6" label="06 · Sinais de alerta" width={ART_W} height={ART_H}>
+          <div data-screen-label="Final · 06 Alertas">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VA_Alertas /></div>
+                <div style={{ paddingBottom: 22 }}><VF_NavWarm active={0} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        id="va-ios" title="Variação A · Compacta — iOS"
+        subtitle="Glanceable, humano, scrolling feed. Tom acolhedor com Fraunces nos momentos humanos. Tipos de tela 1–6.">
+
+        <DCArtboard id="va-ios-1" label="01 · Capa / Resumo" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-iOS · 01 Capa">
+            <IOSScreen navActive={0}><VA_Resumo /></IOSScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-ios-2" label="02 · Pré-natal" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-iOS · 02 Pré-natal">
+            <IOSScreen navActive={1}><VA_PreNatal /></IOSScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-ios-3" label="03 · Consultas" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-iOS · 03 Consultas">
+            <IOSScreen navActive={2}><VA_Consultas /></IOSScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-ios-4" label="04 · Exames + USG" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-iOS · 04 Exames">
+            <IOSScreen navActive={3}><VA_Exames /></IOSScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-ios-5" label="05 · Alertas" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-iOS · 05 Alertas">
+            <IOSScreen navActive={4}><VA_Alertas /></IOSScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-ios-6" label="06 · Compartilhar" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-iOS · 06 Compartilhar">
+            <IOSScreen navActive={4}><VA_Compartilhar /></IOSScreen>
+          </div>
+        </DCArtboard>
+
+      </DCSection>
+
+      <DCSection
+        id="va-android" title="Variação A · Compacta — Android"
+        subtitle="Mesma linguagem traduzida para Material — barra de status à esquerda, gesto inferior, tipografia Roboto.">
+        <DCArtboard id="va-and-1" label="01 · Capa" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-Android · 01 Capa">
+            <AndroidScreen navActive={0}><VA_Resumo topPad={20} /></AndroidScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-and-2" label="02 · Pré-natal" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-Android · 02 Pré-natal">
+            <AndroidScreen navActive={1}><VA_PreNatal topPad={20} /></AndroidScreen>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="va-and-3" label="03 · Alertas" width={ART_W} height={ART_H}>
+          <div data-screen-label="VA-Android · 03 Alertas">
+            <AndroidScreen navActive={4}><VA_Alertas topPad={20} /></AndroidScreen>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        id="vb-ios" title="Variação B · Detalhada — iOS"
+        subtitle="Header indigo persistente com IG/DPP/risco + abas. Layout clínico com tabelas densas. Telas 1–4.">
+        <DCArtboard id="vb-ios-1" label="01 · Resumo" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-iOS · 01 Resumo">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VB_Resumo /></div>
+                <div style={{ paddingBottom: 22 }}><VB_Nav active={0} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vb-ios-2" label="02 · Pré-natal" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-iOS · 02 Pré-natal">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VB_PreNatal /></div>
+                <div style={{ paddingBottom: 22 }}><VB_Nav active={1} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vb-ios-3" label="03 · Exames" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-iOS · 03 Exames">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VB_Exames /></div>
+                <div style={{ paddingBottom: 22 }}><VB_Nav active={2} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vb-ios-4" label="04 · Plano de parto" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-iOS · 04 Plano">
+            <IOSDevice width={390} height={844}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}><VB_Plano /></div>
+                <div style={{ paddingBottom: 22 }}><VB_Nav active={3} /></div>
+              </div>
+            </IOSDevice>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        id="vb-android" title="Variação B · Detalhada — Android"
+        subtitle="Mesma estrutura em Material. O header indigo continua a fazer o trabalho de ancorar identidade do módulo.">
+        <DCArtboard id="vb-and-1" label="01 · Resumo" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-Android · 01 Resumo">
+            <div style={{ width: 390, height: 844, borderRadius: 36, overflow: 'hidden', background: '#f6f7fb', border: '8px solid rgba(116,119,117,0.5)', boxShadow: '0 30px 80px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ height: 24 }} />
+              <div style={{ flex: 1, overflow: 'hidden' }}><VB_Resumo topPad={12} /></div>
+              <div><VB_Nav active={0} /><div style={{ height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 108, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.4)' }} /></div></div>
+            </div>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vb-and-2" label="02 · Exames" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-Android · 02 Exames">
+            <div style={{ width: 390, height: 844, borderRadius: 36, overflow: 'hidden', background: '#f6f7fb', border: '8px solid rgba(116,119,117,0.5)', boxShadow: '0 30px 80px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ height: 24 }} />
+              <div style={{ flex: 1, overflow: 'hidden' }}><VB_Exames topPad={12} /></div>
+              <div><VB_Nav active={2} /><div style={{ height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 108, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.4)' }} /></div></div>
+            </div>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="vb-and-3" label="03 · Plano" width={ART_W} height={ART_H}>
+          <div data-screen-label="VB-Android · 03 Plano">
+            <div style={{ width: 390, height: 844, borderRadius: 36, overflow: 'hidden', background: '#f6f7fb', border: '8px solid rgba(116,119,117,0.5)', boxShadow: '0 30px 80px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ height: 24 }} />
+              <div style={{ flex: 1, overflow: 'hidden' }}><VB_Plano topPad={12} /></div>
+              <div><VB_Nav active={3} /><div style={{ height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 108, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.4)' }} /></div></div>
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        id="pdf" title="PDF imprimível — substituto do cartão físico"
+        subtitle="A4 retrato. Mesmas informações que estão no app, paginadas para impressão. QR no rodapé volta para a versão sempre atualizada do app.">
+        <DCArtboard id="pdf-1" label="A4 · Frente" width={PDF_W} height={PDF_H}>
+          <div data-screen-label="PDF · A4 Frente">
+            <PDFPreview />
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+// Mount when all script tags have parsed (their type=text/babel runs after this script too,
+// because Babel scans on DOMContentLoaded). Safe to wait for DOMContentLoaded + a tick.
+function mount() {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App />);
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(mount, 0));
+} else {
+  setTimeout(mount, 0);
+}
+</script>
+
+</body>
+</html>

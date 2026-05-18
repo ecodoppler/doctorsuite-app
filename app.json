@@ -31,7 +31,21 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "DoctorSuite precisa da câmera para registrar selfie no ponto eletrônico (compliance Portaria 671/2021).",
+          "photosPermission": "DoctorSuite precisa de acesso às fotos para selecionar imagens no chat.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar geofencing (compliance Portaria 671/2021)."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
