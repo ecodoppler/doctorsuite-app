@@ -154,6 +154,7 @@ export default function InicioScreen() {
   }
 
   const meds = data.meds || [];
+  const allergies = data.allergies || []; // v0.0.307
   const history = data.history || { obstetric: [], personal: [], family: [] };
 
   const igTotal = pregnancy.igWeeks * 7 + pregnancy.igDays;
@@ -274,6 +275,26 @@ export default function InicioScreen() {
                       <Text style={s.medMeta}>
                         {[m.freq, m.since && `desde ${m.since}`, m.why].filter(Boolean).join(' · ')}
                       </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </Card>
+          </Section>
+        )}
+
+        {/* Alergias — v0.0.307 */}
+        {allergies.length > 0 && (
+          <Section>
+            <SectionTitle>Alergias</SectionTitle>
+            <Card padding={0}>
+              {allergies.map((a, i) => (
+                <View key={i} style={[s.medItem, i < allergies.length - 1 && s.itemBorder]}>
+                  <View style={s.allergyBullet} />
+                  <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={s.medName}>{a.name}</Text>
+                    {a.kind === 'product' && (
+                      <Text style={s.allergyKindBadge}>Comercial</Text>
                     )}
                   </View>
                 </View>
@@ -441,6 +462,9 @@ const s = StyleSheet.create({
   medName: { fontSize: 12, color: Status.ink, fontFamily: Fonts.uiBold },
   medDose: { color: Warm.accentDeep, fontFamily: Fonts.num, fontSize: 11 },
   medMeta: { fontSize: 10.5, color: Status.slate, fontFamily: Fonts.ui, marginTop: 2 },
+  // v0.0.307: alergias — bullet vermelho (padrão clínico de alerta) + badge "Comercial" pra nomes de marca.
+  allergyBullet: { width: 6, height: 6, borderRadius: 99, backgroundColor: '#dc2626', marginTop: 6 },
+  allergyKindBadge: { fontSize: 9, fontWeight: '600', color: '#6d28d9', backgroundColor: '#ede9fe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, overflow: 'hidden' },
 
   bulletRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   bulletDot: { color: Warm.accentDeep, fontFamily: Fonts.uiBold },
