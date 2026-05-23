@@ -11,6 +11,7 @@ import { Colors } from '../../../services/theme';
 import { pickAndUploadChatImage } from '../../../services/chatImage';
 import ChatImage from '../../../components/chat/ChatImage';
 import ChatTemplatesModal from '../../../components/chat/ChatTemplatesModal';
+import { GlassView } from '../../../components/glass/GlassView';
 
 // Verifica se nota interna ainda é editável (24h pós criação)
 function canEditNote(msg, myId) {
@@ -339,6 +340,7 @@ export default function ChatConversation() {
       {/* v0.0.108: Modal edição de nota interna */}
       <Modal visible={!!editingNote} transparent animationType="fade" onRequestClose={() => setEditingNote(null)}>
         <View style={s.editModalBackdrop}>
+          <GlassView tint="systemMaterialDark" intensity={40} style={StyleSheet.absoluteFillObject} />
           <View style={s.editCard}>
             <View style={s.editHeader}>
               <Ionicons name="document-text" size={20} color="#92400e" />
@@ -373,6 +375,7 @@ export default function ChatConversation() {
 
       <Modal visible={showActions} transparent animationType="fade" onRequestClose={() => setShowActions(false)}>
         <Pressable style={s.actionsBackdrop} onPress={() => setShowActions(false)}>
+          <GlassView tint="systemMaterialDark" intensity={40} style={StyleSheet.absoluteFillObject} pointerEvents="none" />
           <Pressable style={s.actionsSheet} onPress={() => {}}>
             <Text style={s.actionsTitle}>Ações</Text>
             <Pressable style={s.actionItem} onPress={handleExtend}>
@@ -448,8 +451,9 @@ const s = StyleSheet.create({
   noteText: { fontSize: 13.5, color: '#78350f', lineHeight: 18 },
   noteTime: { fontSize: 10, color: '#92400e', marginTop: 4, fontStyle: 'italic' },
 
-  // v0.0.108: Modal edição de nota
-  editModalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  // v0.0.108: Modal edição de nota — v0.2 Liquid Glass: backdrop semi-escuro
+  // + GlassView por cima (sistema material dark) pro efeito frosted Apple
+  editModalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   editCard: { backgroundColor: '#fff', borderRadius: 14, padding: 18, width: '100%', maxWidth: 380 },
   editHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   editTitle: { fontSize: 15, fontWeight: '700', color: '#92400e' },
@@ -460,7 +464,7 @@ const s = StyleSheet.create({
   editSaveBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: '#f59e0b', borderRadius: 8 },
   editSaveText: { fontWeight: '700', color: '#fff' },
 
-  actionsBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  actionsBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'flex-end' },
   actionsSheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, paddingBottom: 30 },
   actionsTitle: { fontSize: 13, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, paddingHorizontal: 8 },
   actionItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 10 },

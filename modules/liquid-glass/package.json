@@ -1,0 +1,9 @@
+{
+  "name": "liquid-glass",
+  "version": "0.1.0",
+  "description": "DoctorSuite Liquid Glass — Apple SwiftUI Material com refração autêntica (iOS 18+/26) + fallback Material clássico (iOS 16-17) + fallback solid (Android).",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true,
+  "repository": "https://github.com/lucasnunes/doctorsuite-app"
+}

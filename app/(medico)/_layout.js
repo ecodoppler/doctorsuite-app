@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, View, StyleSheet, AppState } from 'react-native';
+import { Text, View, StyleSheet, AppState, Platform } from 'react-native';
 import { Colors } from '../../services/theme';
 import { api, getUser } from '../../services/api';
 import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
+import { GlassView } from '../../components/glass/GlassView';
 
 // Badge custom pro Tab de Chat (lê /api/chat/patients e soma unread)
 function ChatTabIcon({ color, size }) {
@@ -60,7 +61,17 @@ export default function MedicoLayout() {
       headerTitleStyle: { fontWeight: '700' },
       tabBarActiveTintColor: Colors.primary,
       tabBarInactiveTintColor: Colors.textMuted,
-      tabBarStyle: { backgroundColor: Colors.white, borderTopColor: Colors.border },
+      // v0.2 Liquid Glass: tab bar flutuante translúcida (idem paciente layout)
+      tabBarStyle: {
+        position: 'absolute',
+        borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
+        borderTopColor: 'rgba(0,0,0,0.08)',
+        backgroundColor: 'transparent',
+        elevation: 0,
+      },
+      tabBarBackground: () => (
+        <GlassView material="systemChromeMaterial" intensity={70} style={StyleSheet.absoluteFillObject} />
+      ),
       headerRight: clinicName ? () => (
         <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
           {clinicName}

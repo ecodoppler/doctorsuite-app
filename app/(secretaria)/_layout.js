@@ -1,8 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
+import { GlassView } from '../../components/glass/GlassView';
 
 export default function SecretariaLayout() {
   const user = getUser();
@@ -15,7 +16,17 @@ export default function SecretariaLayout() {
       headerTitleStyle: { fontWeight: '700' },
       tabBarActiveTintColor: Colors.primary,
       tabBarInactiveTintColor: Colors.textMuted,
-      tabBarStyle: { backgroundColor: Colors.white, borderTopColor: Colors.border },
+      // v0.2 Liquid Glass: tab bar flutuante translúcida
+      tabBarStyle: {
+        position: 'absolute',
+        borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
+        borderTopColor: 'rgba(0,0,0,0.08)',
+        backgroundColor: 'transparent',
+        elevation: 0,
+      },
+      tabBarBackground: () => (
+        <GlassView material="systemChromeMaterial" intensity={70} style={StyleSheet.absoluteFillObject} />
+      ),
       headerRight: clinicName ? () => (
         <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
           {clinicName}

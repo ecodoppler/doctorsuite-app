@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
 import { PregnancyProvider, usePregnancy } from '../../services/pregnancy-context';
 import { NotificationsProvider, useNotifications } from '../../services/notifications-context';
 import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
+import { GlassView } from '../../components/glass/GlassView';
 
 function TabsInner() {
   const user = getUser();
@@ -47,7 +48,23 @@ function TabsInner() {
       headerTitleStyle: { fontWeight: '700' },
       tabBarActiveTintColor: Colors.primary,
       tabBarInactiveTintColor: Colors.textMuted,
-      tabBarStyle: { backgroundColor: Colors.white, borderTopColor: Colors.border },
+      // v0.2 Liquid Glass: tab bar flutuante com material translúcido.
+      // position absolute libera o conteúdo das telas a passar por baixo
+      // (efeito iOS premium). Border top sutil cria a "linha de luz" do glass.
+      tabBarStyle: {
+        position: 'absolute',
+        borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
+        borderTopColor: 'rgba(0,0,0,0.08)',
+        backgroundColor: 'transparent',
+        elevation: 0, // remove sombra Android (glass faz a separação visual)
+      },
+      tabBarBackground: () => (
+        <GlassView
+          material="systemChromeMaterial"
+          intensity={70}
+          style={StyleSheet.absoluteFillObject}
+        />
+      ),
       headerRight: clinicName ? () => (
         <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
           {clinicName}
