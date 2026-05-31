@@ -12,6 +12,8 @@ export default function LoginScreen() {
   const [mode, setMode] = useState('profissional');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [need2fa, setNeed2fa] = useState(false);
   const [cpf, setCpf] = useState('');
   const [dob, setDob] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,9 +40,16 @@ export default function LoginScreen() {
 
   const handleProfessionalLogin = async () => {
     if (!email || !password) return Alert.alert('Atenção', 'Preencha email e senha.');
+    if (need2fa && !totpCode) return Alert.alert('Atenção', 'Digite o código de verificação (2FA).');
     setLoading(true);
     try {
-      const data = await login(email.trim().toLowerCase(), password);
+      const data = await login(email.trim().toLowerCase(), password, need2fa ? totpCode.trim() : undefined);
+      if (data.need_2fa) {
+        setNeed2fa(true);
+        setLoading(false);
+        Alert.alert('Verificação em 2 etapas', data.error || 'Digite o código do seu app autenticador.');
+        return;
+      }
       const role = data.user?.role;
       if (role === 'admin' || role === 'medico') {
         router.replace('/(medico)/agenda');
@@ -106,9 +115,15 @@ export default function LoginScreen() {
                 keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
                 value={email} onChangeText={setEmail} />
               <TextInput style={s.input} placeholder="Senha" placeholderTextColor={Colors.textMuted}
-                secureTextEntry value={password} onChangeText={setPassword} onSubmitEditing={handleProfessionalLogin} />
+                secureTextEntry value={password} onChangeText={setPassword}
+                onSubmitEditing={need2fa ? undefined : handleProfessionalLogin} />
+              {need2fa && (
+                <TextInput style={s.input} placeholder="Código de verificação (2FA)" placeholderTextColor={Colors.textMuted}
+                  keyboardType="number-pad" autoFocus maxLength={6} value={totpCode}
+                  onChangeText={(t) => setTotpCode(t.replace(/\D/g, ''))} onSubmitEditing={handleProfessionalLogin} />
+              )}
               <TouchableOpacity style={s.btn} onPress={handleProfessionalLogin} disabled={loading} activeOpacity={0.8}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Entrar</Text>}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{need2fa ? 'Verificar e entrar' : 'Entrar'}</Text>}
               </TouchableOpacity>
             </>
           ) : (

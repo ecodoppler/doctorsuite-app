@@ -35,7 +35,9 @@ const NativeView: React.ComponentType<LiquidGlassViewProps> =
   requireNativeView('LiquidGlass');
 
 export function LiquidGlassView(props: LiquidGlassViewProps) {
-  return <NativeView {...props} />;
+  // Sem JSX: este arquivo é .ts (Metro não transpila JSX em .ts). createElement é equivalente
+  // a <NativeView {...props} /> (children já vão em props.children). v0.0.401.
+  return React.createElement(NativeView, props);
 }
 
 export default LiquidGlassView;

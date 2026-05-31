@@ -61,14 +61,20 @@ export async function restoreAuth() {
   return { token: _token, user: _user };
 }
 
-export async function login(email, password) {
+export async function login(email, password, totpCode) {
+  const body = { email, password };
+  if (totpCode) body.totp_code = totpCode;
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Erro no login');
+  // v0.0.401: 2FA — backend devolve { need_2fa:true } (401/403). Sinaliza p/ a tela pedir o código.
+  if (!res.ok) {
+    if (data && data.need_2fa) return { need_2fa: true, error: data.error };
+    throw new Error(data.error || 'Erro no login');
+  }
   await setAuth(data.token, data.user);
   return data;
 }
