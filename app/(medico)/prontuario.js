@@ -6,8 +6,11 @@ import {
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+
+const API_BASE = 'https://doctorsuite.app';
 import { getPendingPatient, onPendingPatient } from '../../services/navigation';
 
 function openWhatsApp(phone) {

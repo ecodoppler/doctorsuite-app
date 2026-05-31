@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { api } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 
@@ -9,6 +12,7 @@ export default function LaudosScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
     try {
