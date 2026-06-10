@@ -44,16 +44,26 @@ function examLabel(type) {
 // Abre o PDF do laudo (mesma rota pública /p/<token> do web). pdf_tokens vem do backend
 // (STRING_AGG dos share tokens de report_pdfs). Só laudo assinado tem PDF salvo.
 async function openLaudoPdf(item) {
+  const reportId = item.reportId || (item.source === 'report' ? item.id : null);
   const tokens = String(item.pdfTokens || '').split(',').map((t) => t.trim()).filter(Boolean);
-  if (!tokens.length) {
-    const draft = item.status === 'rascunho' || item.status === 'em_analise' || item.status === 'edicao_livre';
-    Alert.alert('Laudo sem PDF', draft
-      ? 'Este laudo ainda está em rascunho — o PDF é gerado quando ele é assinado.'
-      : 'Nenhum PDF disponível para este laudo.');
-    return;
+  // 1) Endpoint autenticado: devolve um link válido e RENOVA a validade se o laudo for antigo (+90d) —
+  // o médico não fica refém da expiração de 90d do link público do paciente.
+  if (reportId) {
+    try {
+      const r = await api(`/api/reports/${reportId}/pdf-link`);
+      if (r?.url) { await WebBrowser.openBrowserAsync(`${API_BASE}${r.url}`); return; }
+    } catch (e) { /* cai pro fallback abaixo (backend antigo / falha de rede) */ }
   }
-  try { await WebBrowser.openBrowserAsync(`${API_BASE}/p/${tokens[0]}`); }
-  catch (e) { Alert.alert('Erro', 'Não foi possível abrir o PDF do laudo.'); }
+  // 2) Fallback: token direto (vale enquanto não expirou).
+  if (tokens.length) {
+    try { await WebBrowser.openBrowserAsync(`${API_BASE}/p/${tokens[0]}`); return; }
+    catch (e) { Alert.alert('Erro', 'Não foi possível abrir o PDF do laudo.'); return; }
+  }
+  // 3) Sem PDF.
+  const draft = item.status === 'rascunho' || item.status === 'em_analise' || item.status === 'edicao_livre';
+  Alert.alert('Laudo sem PDF', draft
+    ? 'Este laudo ainda está em rascunho — o PDF é gerado quando ele é assinado.'
+    : 'Nenhum PDF disponível para este laudo.');
 }
 
 // Build unified timeline from API data
@@ -93,7 +103,7 @@ function buildTimeline(data) {
       title: a.type_name || (linkedReport ? examLabel(linkedReport.exam_type) : 'Consulta'),
       doctor: a.doctor_name,
       insurance: a.insurance_name, status: a.status, id: a.id,
-      pdfTokens: linkedReport?.pdf_tokens || '', hasLaudo: !!linkedReport,
+      pdfTokens: linkedReport?.pdf_tokens || '', hasLaudo: !!linkedReport, reportId: linkedReport?.id || null,
       color: a.category === 'exame' ? '#10b981' : '#3b82f6',
     });
   }
