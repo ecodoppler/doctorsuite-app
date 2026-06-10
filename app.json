@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "deploymentTarget": "16.0"
+      "deploymentTarget": "16.0",
+      "bundleIdentifier": "app.doctorsuite.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -44,7 +45,8 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar geofencing (compliance Portaria 671/2021)."
+          "locationWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021).",
+          "locationAlwaysAndWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021)."
         }
       ]
     ],
