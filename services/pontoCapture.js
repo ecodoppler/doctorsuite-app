@@ -55,7 +55,9 @@ export async function captureSelfie() {
 export async function getCurrentLocation() {
   try {
     const pos = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+      // v0.0.502: High (~10m) em vez de Balanced (~100m) — evita posicionar o
+      // funcionário fora/dentro do raio do geofence por imprecisão do GPS.
+      accuracy: Location.Accuracy.High,
     });
     return { lat: pos.coords.latitude, lng: pos.coords.longitude };
   } catch (e) {
