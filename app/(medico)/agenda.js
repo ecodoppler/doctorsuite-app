@@ -113,7 +113,11 @@ export default function AgendaScreen() {
 
   const handleTapAppointment = (appt) => {
     if (!appt) return;
-    const procs = (appt.procedures || []).map(p => {
+    // Mesma regra do card/web: só os principais (esconde componentes do pacote).
+    const _allProcs = appt.procedures || [];
+    const _principais = _allProcs.filter(p => !p.parent_procedure_id);
+    const _procSrc = _principais.length > 0 ? _principais : _allProcs;
+    const procs = _procSrc.map(p => {
       const ins = p.is_particular ? 'Particular' : (p.insurance_name || 'Particular');
       return `${p.type_name || 'Procedimento'} (${ins})`;
     });
@@ -151,9 +155,15 @@ export default function AgendaScreen() {
   const renderSlot = ({ item }) => {
     const appt = item.appointment;
     const hasAppt = !!appt;
+    // Espelha o web: mostra só os procedimentos PRINCIPAIS (parent_procedure_id NULL),
+    // escondendo os componentes do pacote (desmembramento por convênio). Fallback defensivo
+    // p/ a lista crua se não houver principal, e p/ type_name se procedures[] vier vazio.
+    const _allProcs = (hasAppt && appt.procedures) || [];
+    const _principais = _allProcs.filter(p => !p.parent_procedure_id);
+    const _procList = _principais.length > 0 ? _principais : _allProcs;
     const procLines = hasAppt
-      ? ((appt.procedures && appt.procedures.length > 0)
-        ? appt.procedures.map(p => `${p.type_name || 'Procedimento'} · ${p.is_particular ? 'Particular' : (p.insurance_name || 'Particular')}`)
+      ? (_procList.length > 0
+        ? _procList.map(p => `${p.type_name || 'Procedimento'} · ${p.is_particular ? 'Particular' : (p.insurance_name || 'Particular')}`)
         : [appt.procedures_summary || appt.type_name || 'Consulta'])
       : [];
 
