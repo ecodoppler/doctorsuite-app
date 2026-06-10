@@ -20,6 +20,42 @@ function openWhatsApp(phone) {
   Linking.openURL(`https://wa.me/${num}`);
 }
 
+// Rótulos amigáveis dos tipos de exame (espelho do web EXAM_TYPES). Fallback: "prettify" da chave crua.
+const EXAM_TYPES = {
+  us_pelvica_tv: 'US Pélvica via Transvaginal',
+  us_pelvica_abd: 'US Pélvica via Abdominal',
+  us_mamas: 'US Mamas e Prolongamentos Axilares',
+  us_obs_1tri_abd: 'US Obstétrica 1º Tri Abdominal',
+  us_obs_1tri_tv: 'US Obstétrica 1º Tri Transvaginal',
+  us_obstetrica: 'US Obstétrica',
+  us_morfo_1tri: 'US Morfológica 1º Tri com Doppler',
+  us_morfo_2tri: 'US Morfológica 2º Tri com Doppler',
+  doppler_obstetrico: 'Doppler Obstétrico',
+  ecocardiografia_fetal: 'Ecocardiografia Fetal',
+  perfil_biofisico: 'Perfil Biofísico Fetal',
+  colposcopia: 'Colposcopia',
+};
+function examLabel(type) {
+  if (!type) return 'Laudo';
+  if (EXAM_TYPES[type]) return EXAM_TYPES[type];
+  return String(type).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Abre o PDF do laudo (mesma rota pública /p/<token> do web). pdf_tokens vem do backend
+// (STRING_AGG dos share tokens de report_pdfs). Só laudo assinado tem PDF salvo.
+async function openLaudoPdf(item) {
+  const tokens = String(item.pdfTokens || '').split(',').map((t) => t.trim()).filter(Boolean);
+  if (!tokens.length) {
+    const draft = item.status === 'rascunho' || item.status === 'em_analise' || item.status === 'edicao_livre';
+    Alert.alert('Laudo sem PDF', draft
+      ? 'Este laudo ainda está em rascunho — o PDF é gerado quando ele é assinado.'
+      : 'Nenhum PDF disponível para este laudo.');
+    return;
+  }
+  try { await WebBrowser.openBrowserAsync(`${API_BASE}/p/${tokens[0]}`); }
+  catch (e) { Alert.alert('Erro', 'Não foi possível abrir o PDF do laudo.'); }
+}
+
 // Build unified timeline from API data
 function buildTimeline(data) {
   const items = [];
@@ -37,32 +73,40 @@ function buildTimeline(data) {
       date: mr.created_at?.slice(0, 10), time: mr.created_at?.slice(11, 16),
       title: recType === 'consulta_obstetrica' ? 'Consulta Obstétrica'
         : recType === 'consulta_ginecologica' ? 'Consulta Ginecológica'
+        : recType === 'encerramento_gestacao' ? 'Encerramento de Gestação'
+        : recType === 'importado' ? 'Registro Importado'
+        : recType === 'chat_anexo' ? 'Mensagens do Chat'
         : recType === 'procedimento' ? 'Procedimento' : 'Consulta Médica',
       doctor: mr.doctor_name, id: mr.id, color: '#4f46e5', content, status: 'registrado',
     });
   }
 
-  // Appointments (skip if linked to a record)
+  // Appointments (skip if linked to a record). Se o agendamento tem laudo vinculado,
+  // carrega os pdf_tokens dele pra dar acesso ao PDF (senão o laudo ficaria inacessível).
   for (const a of appointments) {
     const hasRecord = records.find(r => r.appointment_id === a.id);
     if (hasRecord) continue;
+    const linkedReport = a.report_id ? reports.find(r => r.id === a.report_id) : null;
     items.push({
       source: 'appointment', type: a.type_category || a.category || 'consulta',
       date: a.appointment_date, time: a.appointment_time?.slice(0, 5),
-      title: a.type_name || 'Consulta', doctor: a.doctor_name,
+      title: a.type_name || (linkedReport ? examLabel(linkedReport.exam_type) : 'Consulta'),
+      doctor: a.doctor_name,
       insurance: a.insurance_name, status: a.status, id: a.id,
+      pdfTokens: linkedReport?.pdf_tokens || '', hasLaudo: !!linkedReport,
       color: a.category === 'exame' ? '#10b981' : '#3b82f6',
     });
   }
 
-  // Reports (standalone)
+  // Reports (standalone) — nome amigável + pdf_tokens pra abrir o PDF.
   for (const r of reports) {
     const linked = appointments.find(a => a.report_id === r.id);
     if (!linked) {
       items.push({
         source: 'report', type: 'exame',
         date: r.created_at?.slice(0, 10), time: r.created_at?.slice(11, 16),
-        title: r.exam_type || 'Laudo', status: r.status, id: r.id,
+        title: examLabel(r.exam_type), status: r.status, id: r.id,
+        pdfTokens: r.pdf_tokens || '', examType: r.exam_type,
         color: '#0ea5e9',
       });
     }
@@ -267,6 +311,21 @@ export default function ProntuarioScreen() {
 
                   {/* Record content */}
                   {item.source === 'record' && item.content && renderRecordContent(item.content)}
+
+                  {/* Laudo → abrir PDF (assinado tem token; rascunho mostra aviso) */}
+                  {(item.source === 'report' || item.hasLaudo) && (
+                    item.pdfTokens ? (
+                      <TouchableOpacity style={s.pdfBtn} onPress={() => openLaudoPdf(item)} activeOpacity={0.7}>
+                        <Ionicons name="document-text" size={15} color="#fff" />
+                        <Text style={s.pdfBtnText}>Ver PDF do laudo</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={s.pdfHint}>
+                        <Ionicons name="document-outline" size={13} color={Colors.textMuted} />
+                        <Text style={s.pdfHintText}>{(item.status === 'rascunho' || item.status === 'em_analise' || item.status === 'edicao_livre') ? 'Em rascunho — PDF disponível após assinar' : 'Sem PDF disponível'}</Text>
+                      </View>
+                    )
+                  )}
                 </View>
               </View>
             ))}
@@ -428,6 +487,7 @@ function renderRecordContent(content) {
   // Structured fields
   const structuredFields = [
     { key: 'hda', label: 'HDA', icon: 'book' },
+    { key: 'gin_historico', label: 'Histórico Ginecológico', icon: 'book' },
     { key: 'exame_fisico', label: 'Exame Físico', icon: 'fitness' },
     { key: 'gin_exame_fisico', label: 'Exame Físico', icon: 'fitness' },
     { key: 'hipotese_diagnostica', label: 'Hipótese Diagnóstica', icon: 'analytics' },
@@ -519,6 +579,11 @@ const s = StyleSheet.create({
   metaItem: { fontSize: FontSize.xs, color: Colors.textSecondary },
   prontuarioBadge: { backgroundColor: '#e0f2fe', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
   prontuarioBadgeText: { fontSize: 10, color: '#0284c7', fontWeight: '600' },
+  // Laudo PDF
+  pdfBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#0ea5e9', paddingVertical: 9, borderRadius: Radius.md, marginTop: Spacing.sm },
+  pdfBtnText: { color: '#fff', fontSize: FontSize.sm, fontWeight: '600' },
+  pdfHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: Spacing.sm },
+  pdfHintText: { fontSize: FontSize.xs, color: Colors.textMuted, fontStyle: 'italic' },
   // Record fields
   recordFields: { marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: Spacing.sm },
   recordField: { marginBottom: Spacing.sm },

@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const API_BASE = 'https://doctorsuite.app';
+export const API_BASE = 'https://doctorsuite.app';
 
 const STORAGE_KEYS = { token: 'ds_auth_token', user: 'ds_auth_user' };
 

@@ -30,6 +30,12 @@
 import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import Constants from 'expo-constants';
+
+// Expo Go não compila módulos nativos custom — força o fallback BlurView. Sem isso, o
+// require('../../modules/liquid-glass') CARREGA o JS (o try/catch abaixo não pega), mas o
+// view nativo não existe no Expo Go → "Unimplemented component: ViewManagerAdapter_LiquidGlass".
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
 
 // Módulo nativo da Fase 3 — SwiftUI Material com refração autêntica (iOS 16+/26).
 // Carregamento defensivo: se o módulo nativo não estiver disponível (Expo Go,
@@ -75,7 +81,7 @@ export function GlassView(props) {
   // Refractive=true ativa Liquid Glass autêntico do iOS 26+ (refração + specular).
   // iOS 16-25: cai pro SwiftUI Material clássico (ainda nativo, mas sem refração).
   const iosVer = Platform.OS === 'ios' ? parseInt(String(Platform.Version), 10) || 0 : 0;
-  if (LiquidGlassView && Platform.OS === 'ios' && iosVer >= 16) {
+  if (LiquidGlassView && !IS_EXPO_GO && Platform.OS === 'ios' && iosVer >= 16) {
     return (
       <LiquidGlassView
         material={shortMaterialName(material)}
