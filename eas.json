@@ -30,7 +30,8 @@
       "ios": {
         "ascApiKeyPath": "./credentials/AuthKey_9PLS3PXCQF.p8",
         "ascApiKeyId": "9PLS3PXCQF",
-        "ascApiKeyIssuerId": "d5716f22-a046-4bf2-b7d7-362188de5531"
+        "ascApiKeyIssuerId": "d5716f22-a046-4bf2-b7d7-362188de5531",
+        "ascAppId": "6781105529"
       }
     }
   }
