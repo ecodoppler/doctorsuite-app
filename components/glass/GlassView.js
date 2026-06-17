@@ -31,6 +31,7 @@ import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Constants from 'expo-constants';
+import { requireNativeModule } from 'expo';
 
 // Expo Go não compila módulos nativos custom — força o fallback BlurView. Sem isso, o
 // require('../../modules/liquid-glass') CARREGA o JS (o try/catch abaixo não pega), mas o
@@ -46,6 +47,17 @@ try {
   LiquidGlassView = require('../../modules/liquid-glass').LiquidGlassView;
 } catch (_) {
   LiquidGlassView = null;
+}
+
+// IMPORTANTE: o require acima carrega o JS mesmo quando o módulo NATIVO não está no binário
+// (build sem o módulo compilado/linkado) — `requireNativeView` devolve um componente que, ao
+// renderizar, vira "Unimplemented component: ViewManagerAdapter_LiquidGlass". Por isso só
+// confiamos no view nativo quando `requireNativeModule` ACHA o módulo registrado de fato.
+let NATIVE_GLASS_AVAILABLE = false;
+try {
+  if (Platform.OS !== 'web') { requireNativeModule('LiquidGlass'); NATIVE_GLASS_AVAILABLE = true; }
+} catch (_) {
+  NATIVE_GLASS_AVAILABLE = false;
 }
 
 // Converte o nome "systemXMaterial" do BlurView/Apple para o nome curto do nosso módulo SwiftUI.
@@ -81,7 +93,7 @@ export function GlassView(props) {
   // Refractive=true ativa Liquid Glass autêntico do iOS 26+ (refração + specular).
   // iOS 16-25: cai pro SwiftUI Material clássico (ainda nativo, mas sem refração).
   const iosVer = Platform.OS === 'ios' ? parseInt(String(Platform.Version), 10) || 0 : 0;
-  if (LiquidGlassView && !IS_EXPO_GO && Platform.OS === 'ios' && iosVer >= 16) {
+  if (LiquidGlassView && NATIVE_GLASS_AVAILABLE && !IS_EXPO_GO && Platform.OS === 'ios' && iosVer >= 16) {
     return (
       <LiquidGlassView
         material={shortMaterialName(material)}
