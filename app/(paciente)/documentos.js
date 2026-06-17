@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { api, getToken } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
+import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 import Card from '../../components/pregnancy/Card';
 
 const API_BASE = 'https://doctorsuite.app';
@@ -288,6 +289,7 @@ export default function DocumentosScreen() {
             );
           })
         )}
+        <ClinicalDisclaimer text="Os documentos aqui exibidos foram emitidos pelo seu médico. Em caso de dúvida sobre o conteúdo, fale com a clínica." />
       </ScrollView>
     </View>
   );

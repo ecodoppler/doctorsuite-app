@@ -6,6 +6,7 @@ import Card from '../../components/pregnancy/Card';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
 import { api } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
+import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 
 export default function VacinasScreen() {
   const [data, setData] = useState(null);          // shape: { patient, pregnancy } (de /api/my-pregnancy)
@@ -144,6 +145,7 @@ export default function VacinasScreen() {
             )}
           </View>
         </View>
+        <ClinicalDisclaimer text="As informações de vacinação são um registro orientativo e não substituem a orientação do seu médico ou do serviço de imunização." />
       </ScrollView>
     </View>
   );

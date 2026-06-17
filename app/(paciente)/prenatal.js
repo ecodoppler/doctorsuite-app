@@ -7,6 +7,7 @@ import SectionTitle from '../../components/pregnancy/SectionTitle';
 import Spark from '../../components/pregnancy/Spark';
 import { api } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
+import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 
 const COLS = [
   { key: 'date',   label: 'Data',  flex: 1 },
@@ -211,6 +212,7 @@ export default function PrenatalScreen() {
             </Card>
           )}
         </View>
+        <ClinicalDisclaimer text="As curvas e percentis exibidos são informativos e não substituem a avaliação do seu médico. Em caso de dúvida ou sintomas, procure atendimento." />
       </ScrollView>
     </View>
   );

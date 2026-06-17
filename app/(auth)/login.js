@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Image,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, FlatList,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, FlatList, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { login, loginAsPatient } from '../../services/api';
@@ -21,6 +21,7 @@ export default function LoginScreen() {
   const [clinics, setClinics] = useState(null);
   const [cpfForClinic, setCpfForClinic] = useState('');
   const [dobForClinic, setDobForClinic] = useState('');
+  const [consent, setConsent] = useState(false); // LGPD: aceite explícito antes de autenticar
   const router = useRouter();
 
   const formatCpf = (text) => {
@@ -39,6 +40,7 @@ export default function LoginScreen() {
   };
 
   const handleProfessionalLogin = async () => {
+    if (!consent) return Alert.alert('Atenção', 'Para continuar, aceite a Política de Privacidade.');
     if (!email || !password) return Alert.alert('Atenção', 'Preencha email e senha.');
     if (need2fa && !totpCode) return Alert.alert('Atenção', 'Digite o código de verificação (2FA).');
     setLoading(true);
@@ -64,6 +66,7 @@ export default function LoginScreen() {
   };
 
   const handlePatientLogin = async (selectedClinicId) => {
+    if (!consent) return Alert.alert('Atenção', 'Para continuar, aceite a Política de Privacidade.');
     const cpfVal = selectedClinicId ? cpfForClinic : cpf.replace(/\D/g, '');
     const dobVal = selectedClinicId ? dobForClinic : (() => {
       const parts = dob.split('/');
@@ -122,7 +125,7 @@ export default function LoginScreen() {
                   keyboardType="number-pad" autoFocus maxLength={6} value={totpCode}
                   onChangeText={(t) => setTotpCode(t.replace(/\D/g, ''))} onSubmitEditing={handleProfessionalLogin} />
               )}
-              <TouchableOpacity style={s.btn} onPress={handleProfessionalLogin} disabled={loading} activeOpacity={0.8}>
+              <TouchableOpacity style={[s.btn, !consent && s.btnDisabled]} onPress={handleProfessionalLogin} disabled={loading || !consent} activeOpacity={0.8}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{need2fa ? 'Verificar e entrar' : 'Entrar'}</Text>}
               </TouchableOpacity>
             </>
@@ -133,12 +136,23 @@ export default function LoginScreen() {
               <TextInput style={s.input} placeholder="Data de Nascimento (DD/MM/AAAA)" placeholderTextColor={Colors.textMuted}
                 keyboardType="numeric" value={dob} onChangeText={(t) => setDob(formatDob(t))} maxLength={10}
                 onSubmitEditing={() => handlePatientLogin()} />
-              <TouchableOpacity style={s.btn} onPress={() => handlePatientLogin()} disabled={loading} activeOpacity={0.8}>
+              <TouchableOpacity style={[s.btn, !consent && s.btnDisabled]} onPress={() => handlePatientLogin()} disabled={loading || !consent} activeOpacity={0.8}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Acessar Meus Dados</Text>}
               </TouchableOpacity>
             </>
           )}
         </View>
+
+        <TouchableOpacity style={s.consentRow} onPress={() => setConsent(!consent)} activeOpacity={0.7}>
+          <View style={[s.checkbox, consent && s.checkboxOn]}>
+            {consent && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+          <Text style={s.consentText}>
+            Li e aceito a{' '}
+            <Text style={s.link} onPress={() => Linking.openURL('https://doctorsuite.app/privacy')}>Política de Privacidade</Text>
+            {' '}e o tratamento dos meus dados de saúde conforme a LGPD.
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Multi-clinic picker modal */}
@@ -194,6 +208,12 @@ const s = StyleSheet.create({
     padding: Spacing.md, alignItems: 'center', marginTop: Spacing.sm,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.lg },
+  btnDisabled: { opacity: 0.5 },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', width: '100%', maxWidth: 360, marginTop: Spacing.md, gap: Spacing.sm },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  consentText: { flex: 1, fontSize: FontSize.sm, color: Colors.textMuted, lineHeight: 18 },
+  link: { color: Colors.primary, fontWeight: '600', textDecorationLine: 'underline' },
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
   modalCard: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.lg, width: '100%', maxWidth: 360 },
