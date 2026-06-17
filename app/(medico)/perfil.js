@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { getUser, logout } from '../../services/api';
+import { getUser, logout, deleteAccount } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import {
   isSupported as bioIsSupported,
@@ -62,6 +62,26 @@ export default function PerfilScreen() {
     ]);
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Excluir minha conta',
+      'Sua conta de acesso será desativada e você não poderá mais entrar no app.\n\nOs laudos e registros que você assinou permanecem válidos e atribuídos a você (exigência do CFM).\n\nEsta ação é irreversível. Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir conta', style: 'destructive', onPress: async () => {
+            try {
+              await deleteAccount();
+              router.replace('/(auth)/login');
+            } catch (e) {
+              Alert.alert('Erro', e?.message || 'Não foi possível excluir a conta.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const roleLabel = (r) => {
     if (r === 'admin') return 'Administrador';
     if (r === 'medico') return 'Médico(a)';
@@ -109,6 +129,11 @@ export default function PerfilScreen() {
         <Text style={s.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={s.deleteBtn} onPress={handleDeleteAccount}>
+        <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+        <Text style={s.deleteText}>Excluir minha conta</Text>
+      </TouchableOpacity>
+
       <Text style={s.version}>DoctorSuite App v1.0.0</Text>
     </View>
   );
@@ -141,5 +166,7 @@ const s = StyleSheet.create({
   menuValue: { fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: Spacing.md, padding: Spacing.md, backgroundColor: Colors.dangerBg, borderRadius: Radius.md, gap: Spacing.sm },
   logoutText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.danger },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: Spacing.md, marginTop: Spacing.sm, padding: Spacing.sm, gap: 6 },
+  deleteText: { fontSize: FontSize.sm, color: Colors.textMuted, textDecorationLine: 'underline' },
   version: { textAlign: 'center', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.md },
 });

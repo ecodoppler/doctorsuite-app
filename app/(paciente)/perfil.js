@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { getUser, logout } from '../../services/api';
+import { getUser, logout, deleteAccount } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import {
   isSupported as bioIsSupported,
@@ -62,6 +62,27 @@ export default function PerfilScreen() {
     ]);
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Excluir minha conta',
+      'Seus dados pessoais (nome, CPF, contato) serão removidos e você não poderá mais acessar o app.\n\nPor exigência legal (CFM 1.821/2007), seu prontuário médico é mantido de forma anônima pela clínica.\n\nEsta ação é irreversível. Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir conta', style: 'destructive', onPress: async () => {
+            try {
+              await deleteAccount();
+              router.replace('/(auth)/login');
+              setTimeout(() => Alert.alert('Conta excluída', 'Seus dados pessoais foram removidos.'), 400);
+            } catch (e) {
+              Alert.alert('Erro', e?.message || 'Não foi possível excluir a conta.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const roleLabel = (r) => {
     if (r === 'admin') return 'Administrador';
     if (r === 'medico') return 'Médico(a)';
@@ -109,6 +130,11 @@ export default function PerfilScreen() {
         <Text style={s.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={s.deleteBtn} onPress={handleDeleteAccount}>
+        <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+        <Text style={s.deleteText}>Excluir minha conta</Text>
+      </TouchableOpacity>
+
       <Text style={s.version}>DoctorSuite App v1.0.0</Text>
     </View>
   );
@@ -141,5 +167,7 @@ const s = StyleSheet.create({
   menuValue: { fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: Spacing.md, padding: Spacing.md, backgroundColor: Colors.dangerBg, borderRadius: Radius.md, gap: Spacing.sm },
   logoutText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.danger },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: Spacing.md, marginTop: Spacing.sm, padding: Spacing.sm, gap: 6 },
+  deleteText: { fontSize: FontSize.sm, color: Colors.textMuted, textDecorationLine: 'underline' },
   version: { textAlign: 'center', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.md },
 });

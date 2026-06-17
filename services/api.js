@@ -137,3 +137,24 @@ export async function logout() {
   } catch {}
   if (_onLogout) _onLogout();
 }
+
+// Exclusão de conta in-app (App Store 5.1.1(v) + LGPD). No backend, paciente é anonimizado
+// (prontuário mantido por lei — CFM) e profissional tem o login desativado. Em qualquer caso,
+// limpamos o estado local e disparamos o fluxo de logout. Retorna { ok, mode }.
+export async function deleteAccount() {
+  if (!_token) throw new Error('Sessão expirada');
+  const res = await fetch(`${API_BASE}/api/auth/me/account`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${_token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Não foi possível excluir a conta.');
+  await _clearLocal();
+  try {
+    const bio = await import('./biometric');
+    await bio.clearEnabled();
+    await bio.clearActivity();
+  } catch {}
+  if (_onLogout) _onLogout();
+  return data;
+}
