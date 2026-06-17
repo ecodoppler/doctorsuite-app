@@ -68,6 +68,27 @@ async function openLaudoPdf(item) {
     : 'Nenhum PDF disponível para este laudo.');
 }
 
+// v0.0.643: rótulos dos documentos clínicos (linguagem natural, sem chave técnica).
+const DOC_TYPE_LABELS = {
+  atestado: 'Atestado Médico',
+  declaracao: 'Declaração de Comparecimento',
+  encaminhamento: 'Encaminhamento Médico',
+  exames: 'Solicitação de Exames',
+};
+
+// Abre o PDF de um documento clínico — endpoint autenticado devolve URL R2 assinada; WebBrowser abre.
+async function openClinicDoc(doc) {
+  if (!doc?.has_pdf) {
+    Alert.alert('Documento', 'O PDF deste documento fica disponível após a assinatura.');
+    return;
+  }
+  try {
+    const r = await api(`/api/clinic-documents/${doc.id}/pdf-url`);
+    if (r?.url) { await WebBrowser.openBrowserAsync(r.url); return; }
+  } catch (e) {}
+  Alert.alert('Documento', 'Não foi possível abrir o PDF do documento.');
+}
+
 // Build unified timeline from API data
 function buildTimeline(data) {
   const items = [];
@@ -95,10 +116,15 @@ function buildTimeline(data) {
 
   // Appointments (skip if linked to a record). Se o agendamento tem laudo vinculado,
   // carrega os pdf_tokens dele pra dar acesso ao PDF (senão o laudo ficaria inacessível).
+  // Espelha a web (_buildTimeline): só ENTRA na timeline o appointment que é EXAME com laudo
+  // finalizado. Consultas vêm pelos records; agendamentos futuros / sem laudo NÃO aparecem aqui.
+  const FINALIZED_APPT = ['concluido', 'finalizado', 'assinado', 'registrado'];
   for (const a of appointments) {
     const hasRecord = records.find(r => r.appointment_id === a.id);
     if (hasRecord) continue;
-    const linkedReport = a.report_id ? reports.find(r => r.id === a.report_id) : null;
+    const cat = a.type_category || a.category;
+    if (cat !== 'exame' || !a.report_id || !FINALIZED_APPT.includes(a.status)) continue;
+    const linkedReport = reports.find(r => r.id === a.report_id) || null;
     items.push({
       source: 'appointment', type: a.type_category || a.category || 'consulta',
       date: a.appointment_date, time: a.appointment_time?.slice(0, 5),
@@ -120,6 +146,25 @@ function buildTimeline(data) {
         title: examLabel(r.exam_type), status: r.status, id: r.id,
         pdfTokens: r.pdf_tokens || '', examType: r.exam_type,
         color: '#0ea5e9',
+      });
+    }
+  }
+
+  // v0.0.643: documentos clínicos (atestado/declaração/encaminhamento/solicitação) — anexa ao
+  // atendimento (record) do MESMO DIA; sem record no dia → entra como item próprio. Espelha a web.
+  const clinicDocs = data.clinic_documents || [];
+  for (const doc of clinicDocs) {
+    const day = (doc.created_at || '').slice(0, 10);
+    const entry = { id: doc.id, doc_type: doc.doc_type, label: DOC_TYPE_LABELS[doc.doc_type] || 'Documento', signed: !!doc.signed, has_pdf: !!doc.has_pdf };
+    const host = items.find(it => it.source === 'record' && it.date === day);
+    if (host) {
+      (host.docs = host.docs || []).push(entry);
+    } else {
+      items.push({
+        source: 'document', type: 'documento',
+        date: day, time: (doc.created_at || '').slice(11, 16),
+        title: entry.label, status: doc.signed ? 'assinado' : 'rascunho', id: doc.id,
+        color: '#8b5cf6', docs: [entry],
       });
     }
   }
@@ -324,6 +369,20 @@ export default function ProntuarioScreen() {
 
                   {/* Record content */}
                   {item.source === 'record' && item.content && renderRecordContent(item.content)}
+
+                  {/* v0.0.643: documentos clínicos (atestado/declaração/encaminhamento/solicitação) — chips que abrem o PDF */}
+                  {Array.isArray(item.docs) && item.docs.length > 0 && (
+                    <View style={{ marginTop: 8, gap: 6 }}>
+                      {item.docs.map((d) => (
+                        <TouchableOpacity key={d.id} onPress={() => openClinicDoc(d)} activeOpacity={0.7}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#eef2ff', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 }}>
+                          <Ionicons name="document-attach" size={15} color={Colors.primary} />
+                          <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: '600', color: Colors.primary }}>{d.label}</Text>
+                          <Ionicons name="open-outline" size={13} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
 
                   {/* Laudo → abrir PDF (assinado tem token; rascunho mostra aviso) */}
                   {(item.source === 'report' || item.hasLaudo) && (
