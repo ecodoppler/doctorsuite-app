@@ -13,9 +13,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "deploymentTarget": "16.0",
-      "bundleIdentifier": "app.doctorsuite.mobile"
+      "bundleIdentifier": "app.doctorsuite.mobile",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -45,10 +48,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021).",
-          "locationAlwaysAndWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021)."
+          "locationWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021)."
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
