@@ -5,7 +5,7 @@ import { Text, View, StyleSheet, AppState, Platform } from 'react-native';
 import { Colors } from '../../services/theme';
 import { api, getUser } from '../../services/api';
 import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
-import { GlassView } from '../../components/glass/GlassView';
+import { GlassView, isLiquidGlass } from '../../components/glass/GlassView';
 
 // Badge custom pro Tab de Chat (lê /api/chat/patients e soma unread)
 function ChatTabIcon({ color, size }) {
@@ -65,13 +65,14 @@ export default function MedicoLayout() {
       tabBarStyle: {
         position: 'absolute',
         borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
-        borderTopColor: 'rgba(0,0,0,0.08)',
-        backgroundColor: 'transparent',
+        borderTopColor: 'rgba(0,0,0,0.06)',
+        // iOS 26: barra transparente + Liquid Glass real. Senão: barra branca clara e limpa.
+        backgroundColor: isLiquidGlass ? 'transparent' : 'rgba(255,255,255,0.94)',
         elevation: 0,
       },
-      tabBarBackground: () => (
-        <GlassView material="systemChromeMaterial" intensity={70} style={StyleSheet.absoluteFillObject} />
-      ),
+      tabBarBackground: isLiquidGlass ? () => (
+        <GlassView glassStyle="regular" style={StyleSheet.absoluteFillObject} />
+      ) : undefined,
       headerRight: clinicName ? () => (
         <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
           {clinicName}

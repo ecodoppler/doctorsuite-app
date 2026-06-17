@@ -7,7 +7,7 @@ import { getUser } from '../../services/api';
 import { PregnancyProvider, usePregnancy } from '../../services/pregnancy-context';
 import { NotificationsProvider, useNotifications } from '../../services/notifications-context';
 import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
-import { GlassView } from '../../components/glass/GlassView';
+import { GlassView, isLiquidGlass } from '../../components/glass/GlassView';
 
 function TabsInner() {
   const user = getUser();
@@ -54,17 +54,14 @@ function TabsInner() {
       tabBarStyle: {
         position: 'absolute',
         borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
-        borderTopColor: 'rgba(0,0,0,0.08)',
-        backgroundColor: 'transparent',
+        borderTopColor: 'rgba(0,0,0,0.06)',
+        // iOS 26: barra transparente + Liquid Glass real. Senão: barra branca clara e limpa.
+        backgroundColor: isLiquidGlass ? 'transparent' : 'rgba(255,255,255,0.94)',
         elevation: 0, // remove sombra Android (glass faz a separação visual)
       },
-      tabBarBackground: () => (
-        <GlassView
-          material="systemChromeMaterial"
-          intensity={70}
-          style={StyleSheet.absoluteFillObject}
-        />
-      ),
+      tabBarBackground: isLiquidGlass ? () => (
+        <GlassView glassStyle="regular" style={StyleSheet.absoluteFillObject} />
+      ) : undefined,
       headerRight: clinicName ? () => (
         <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
           {clinicName}

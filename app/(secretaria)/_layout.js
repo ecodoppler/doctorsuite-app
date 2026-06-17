@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { Colors } from '../../services/theme';
 import { getUser } from '../../services/api';
-import { GlassView } from '../../components/glass/GlassView';
+import { GlassView, isLiquidGlass } from '../../components/glass/GlassView';
 
 export default function SecretariaLayout() {
   const user = getUser();
@@ -20,13 +20,14 @@ export default function SecretariaLayout() {
       tabBarStyle: {
         position: 'absolute',
         borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
-        borderTopColor: 'rgba(0,0,0,0.08)',
-        backgroundColor: 'transparent',
+        borderTopColor: 'rgba(0,0,0,0.06)',
+        // iOS 26: barra transparente + Liquid Glass real. Senão: barra branca clara e limpa.
+        backgroundColor: isLiquidGlass ? 'transparent' : 'rgba(255,255,255,0.94)',
         elevation: 0,
       },
-      tabBarBackground: () => (
-        <GlassView material="systemChromeMaterial" intensity={70} style={StyleSheet.absoluteFillObject} />
-      ),
+      tabBarBackground: isLiquidGlass ? () => (
+        <GlassView glassStyle="regular" style={StyleSheet.absoluteFillObject} />
+      ) : undefined,
       headerRight: clinicName ? () => (
         <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
           {clinicName}
