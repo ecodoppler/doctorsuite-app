@@ -88,7 +88,7 @@ const s = StyleSheet.create({
   dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
   dateBtn: { padding: Spacing.sm },
   dateText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text, textTransform: 'capitalize' },
-  list: { padding: Spacing.md },
+  list: { padding: Spacing.md, paddingBottom: 100 }, // folga p/ a barra de abas nativa (pílula iOS 26)
   card: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.borderLight, gap: Spacing.md },
   time: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary, width: 48 },
   name: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },

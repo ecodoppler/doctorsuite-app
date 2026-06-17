@@ -154,7 +154,7 @@ export default function PontoScreen() {
   return (
     <View style={s.container}>
       <ScreenHeader title="Ponto" right={getUser()?.clinic_name} />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}>
       <Text style={s.greeting}>{greeting()}</Text>
       <View style={s.statusRow}>
         <View style={[s.statusDot, { backgroundColor: status.color }]} />

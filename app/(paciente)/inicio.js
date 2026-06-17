@@ -209,6 +209,20 @@ export default function InicioScreen() {
               <Ionicons name="shield-checkmark-outline" size={13} color={Warm.accentDeep} />
               <Text style={s.shortcutText}>Documentos</Text>
             </Pressable>
+            <Pressable
+              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/(paciente)/vacinas')}
+            >
+              <Ionicons name="medkit-outline" size={13} color={Warm.accentDeep} />
+              <Text style={s.shortcutText}>Vacinas</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/(paciente)/plano')}
+            >
+              <Ionicons name="clipboard-outline" size={13} color={Warm.accentDeep} />
+              <Text style={s.shortcutText}>Plano</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -426,7 +440,7 @@ const s = StyleSheet.create({
 
   // Risk + atalhos
   riskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 10, gap: 8 },
-  shortcuts: { flexDirection: 'row', gap: 6 },
+  shortcuts: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, flex: 1 },
   shortcut: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(255,255,255,0.85)',

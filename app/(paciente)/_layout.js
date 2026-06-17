@@ -23,9 +23,9 @@ function TabsInner() {
     return () => clearInterval(interval);
   }, [reloadNotifs]);
 
-  // Abas obstétricas só aparecem na gestação. Enquanto carrega, data é null → ficam escondidas
-  // (evita "flash" + clique acidental). Chat segue o estado do PRÓPRIO chat (puerpério ACTIVE/CLOSING).
-  // Documentos vira aba visível quando NÃO-gestante (atalho central); na gestação fica via push.
+  // Barra enxuta (≤5 abas, sem "More" do iOS): Início · Pré-natal · Chat · Exames · Perfil.
+  // Pré-natal só na gestação; Chat só quando o chat está ativo (puerpério ACTIVE/CLOSING).
+  // Vacinas/Plano/Documentos saíram da barra → viram atalhos no Início (continuam navegáveis).
   const hasPregnancy = !!data?.pregnancy;
   const chatActive = ['ACTIVE', 'CLOSING'].includes(data?.chat?.state);
 
@@ -50,24 +50,15 @@ function TabsInner() {
         <Icon sf={{ default: 'cross.case', selected: 'cross.case.fill' }} />
         <Label>Exames</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="vacinas" hidden={!hasPregnancy}>
-        <Icon sf={{ default: 'syringe', selected: 'syringe.fill' }} />
-        <Label>Vacinas</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="plano" hidden={!hasPregnancy}>
-        <Icon sf={{ default: 'list.clipboard', selected: 'list.clipboard.fill' }} />
-        <Label>Plano</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="documentos" hidden={hasPregnancy}>
-        <Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} />
-        <Label>Documentos</Label>
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="perfil">
         <Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} />
         <Label>Perfil</Label>
       </NativeTabs.Trigger>
 
-      {/* Rotas navegáveis, mas fora da barra (abertas por push ou navegação interna) */}
+      {/* Rotas navegáveis, mas fora da barra (atalhos no Início / push / navegação interna) */}
+      <NativeTabs.Trigger name="vacinas" hidden />
+      <NativeTabs.Trigger name="plano" hidden />
+      <NativeTabs.Trigger name="documentos" hidden />
       <NativeTabs.Trigger name="exame-detalhe" hidden />
       <NativeTabs.Trigger name="alertas" hidden />
       <NativeTabs.Trigger name="notificacoes" hidden />

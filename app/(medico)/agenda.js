@@ -294,7 +294,7 @@ const s = StyleSheet.create({
   sectionHeader: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: 4, backgroundColor: Colors.bg },
   sectionTitle: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6 },
 
-  list: { paddingBottom: Spacing.lg },
+  list: { paddingBottom: 100 }, // folga p/ a última linha não ficar atrás da barra de abas nativa (pílula iOS 26)
   slotCard: { flexDirection: 'row', backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
   slotTimeCol: { width: 46, paddingTop: 1 },
   slotTime: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },

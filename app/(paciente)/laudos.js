@@ -130,7 +130,7 @@ export default function LaudosScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg },
-  list: { padding: Spacing.md },
+  list: { padding: Spacing.md, paddingBottom: 100 }, // folga p/ a barra de abas nativa (pílula iOS 26)
   card: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white,
     borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm,

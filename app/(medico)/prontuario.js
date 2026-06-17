@@ -252,7 +252,7 @@ export default function ProntuarioScreen() {
         {loadingDetail ? (
           <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: Spacing.xxl }} />
         ) : (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}>
             {/* Patient card */}
             <View style={s.patientCard}>
               <View style={s.avatarLg}>
@@ -403,6 +403,7 @@ export default function ProntuarioScreen() {
             ref={listRef}
             sections={sections}
             keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 100 }}
             renderItem={({ item }) => (
               <TouchableOpacity style={s.row} activeOpacity={0.6} onPress={() => openPatient(item)}>
                 <View style={{ flex: 1 }}>

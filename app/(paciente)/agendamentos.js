@@ -152,7 +152,7 @@ export default function AgendamentosScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg },
-  list: { padding: Spacing.md },
+  list: { padding: Spacing.md, paddingBottom: 100 }, // folga p/ a barra de abas nativa (pílula iOS 26)
   sectionTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
   card: {
     backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing.md,
