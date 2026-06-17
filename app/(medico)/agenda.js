@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import { setPendingPatient } from '../../services/navigation';
+import ScreenHeader from '../../components/ScreenHeader';
 
 function generateSlots(schedule, appointments) {
   if (!schedule || !schedule.start_time || !schedule.end_time) return null;
@@ -224,6 +225,7 @@ export default function AgendaScreen() {
 
   return (
     <View style={s.container}>
+      <ScreenHeader title="Agenda" right={getUser()?.clinic_name} />
       <View style={s.dateNav}>
         <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}>
           <Ionicons name="chevron-back" size={20} color={Colors.primary} />

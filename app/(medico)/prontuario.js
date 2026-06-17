@@ -7,8 +7,10 @@ import {
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { api } from '../../services/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+import ScreenHeader from '../../components/ScreenHeader';
 
 const API_BASE = 'https://doctorsuite.app';
 import { getPendingPatient, onPendingPatient } from '../../services/navigation';
@@ -139,6 +141,7 @@ const statusColors = {
 };
 
 export default function ProntuarioScreen() {
+  const insets = useSafeAreaInsets();
   const [patients, setPatients] = useState([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
@@ -239,7 +242,7 @@ export default function ProntuarioScreen() {
 
     return (
       <View style={s.container}>
-        <View style={s.detailHeader}>
+        <View style={[s.detailHeader, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={goBack} style={s.backBtn}>
             <Ionicons name="chevron-back" size={24} color={Colors.primary} />
             <Text style={s.backText}>Pacientes</Text>
@@ -350,6 +353,7 @@ export default function ProntuarioScreen() {
   // ======================== LIST VIEW ========================
   return (
     <View style={s.container}>
+      <ScreenHeader title="Prontuário" right={getUser()?.clinic_name} />
       <View style={s.searchBar}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput
