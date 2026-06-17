@@ -6,12 +6,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { api, getUser } from '../../../services/api';
-import { Colors } from '../../../services/theme';
-import { pickAndUploadChatImage } from '../../../services/chatImage';
-import ChatImage from '../../../components/chat/ChatImage';
-import ChatTemplatesModal from '../../../components/chat/ChatTemplatesModal';
-import { GlassView } from '../../../components/glass/GlassView';
+import { api, getUser } from '../../services/api';
+import { Colors } from '../../services/theme';
+import { pickAndUploadChatImage } from '../../services/chatImage';
+import ChatImage from '../../components/chat/ChatImage';
+import ChatTemplatesModal from '../../components/chat/ChatTemplatesModal';
+import { GlassView } from '../../components/glass/GlassView';
 
 // Verifica se nota interna ainda é editável (24h pós criação)
 function canEditNote(msg, myId) {

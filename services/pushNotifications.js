@@ -97,7 +97,17 @@ export function setupNotificationTapHandler(router, baseRoute = '/(paciente)') {
       if (deepLink) {
         // Pequeno delay pra UI estar pronta (especialmente cold start)
         setTimeout(() => {
-          try { router.push(`${baseRoute}${deepLink}`); } catch (e) { console.warn('[push tap nav]', e.message); }
+          try {
+            // A conversa do chat (médico) virou tela cheia no Stack raiz (/conversa/<id>),
+            // fora do grupo de abas — então o deep_link '/chat/<id>' abre lá. O '/chat'
+            // (lista, sem id) continua relativo à área do usuário.
+            const convo = /^\/chat\/(.+)$/.exec(deepLink);
+            if (convo) {
+              router.push(`/conversa/${convo[1]}`);
+            } else {
+              router.push(`${baseRoute}${deepLink}`);
+            }
+          } catch (e) { console.warn('[push tap nav]', e.message); }
         }, 200);
       }
     } catch (e) { console.warn('[push tap handler]', e.message); }

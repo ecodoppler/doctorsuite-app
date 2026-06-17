@@ -106,7 +106,7 @@ export default function ChatListScreen() {
               <Pressable
                 key={p.id}
                 style={({ pressed }) => [s.item, pressed && { backgroundColor: '#f8fafc' }]}
-                onPress={() => router.push(`/(medico)/chat/${p.id}?name=${encodeURIComponent(firstTwoNames)}`)}
+                onPress={() => router.push(`/conversa/${p.id}?name=${encodeURIComponent(firstTwoNames)}`)}
               >
                 <View style={s.avatar}>
                   <Text style={s.avatarText}>{initial}</Text>

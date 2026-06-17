@@ -144,6 +144,9 @@ export default function RootLayout() {
         <Stack.Screen name="(medico)" />
         <Stack.Screen name="(secretaria)" />
         <Stack.Screen name="(paciente)" />
+        {/* Conversa do chat (médico): tela cheia empurrada no Stack RAIZ, acima das abas
+            nativas — assim a barra de abas some na conversa (padrão WhatsApp). */}
+        <Stack.Screen name="conversa/[id]" />
       </Stack>
     </>
   );
