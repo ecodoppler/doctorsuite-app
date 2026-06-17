@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../../services/api';
+import { api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+import ScreenHeader from '../../components/ScreenHeader';
 
 export default function AgendasScreen() {
   const [appointments, setAppointments] = useState([]);
@@ -41,6 +42,7 @@ export default function AgendasScreen() {
 
   return (
     <View style={s.container}>
+      <ScreenHeader title="Agendas" right={getUser()?.clinic_name} />
       <View style={s.dateNav}>
         <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateBtn}>
           <Ionicons name="chevron-back" size={22} color={Colors.primary} />

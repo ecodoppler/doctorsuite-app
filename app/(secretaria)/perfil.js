@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { getUser, logout, deleteAccount } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+import ScreenHeader from '../../components/ScreenHeader';
 import {
   isSupported as bioIsSupported,
   isEnabled as bioIsEnabled,
@@ -91,6 +92,7 @@ export default function PerfilScreen() {
 
   return (
     <View style={s.container}>
+      <ScreenHeader title="Meu Perfil" right={getUser()?.clinic_name} />
       <View style={s.header}>
         <View style={s.avatar}>
           <Text style={s.avatarText}>{(user?.name || 'U')[0].toUpperCase()}</Text>

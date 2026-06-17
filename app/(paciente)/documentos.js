@@ -7,8 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { api, getToken } from '../../services/api';
+import { api, getToken, getUser } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
+import ScreenHeader from '../../components/ScreenHeader';
 import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 import Card from '../../components/pregnancy/Card';
 
@@ -164,6 +165,7 @@ export default function DocumentosScreen() {
   if (loading) {
     return (
       <View style={s.container}>
+        <ScreenHeader title="Meus Documentos" right={getUser()?.clinic_name} />
         <View style={s.loaderWrap}><ActivityIndicator size="large" color={Warm.accentDeep} /></View>
       </View>
     );
@@ -171,6 +173,7 @@ export default function DocumentosScreen() {
   if (err) {
     return (
       <View style={s.container}>
+        <ScreenHeader title="Meus Documentos" right={getUser()?.clinic_name} />
         <View style={[s.loaderWrap, { padding: 24 }]}>
           <Ionicons name="cloud-offline-outline" size={40} color={Status.slate} />
           <Text style={s.errText}>Não foi possível carregar.{'\n'}{err}</Text>
@@ -187,6 +190,7 @@ export default function DocumentosScreen() {
 
   return (
     <View style={s.container}>
+      <ScreenHeader title="Meus Documentos" right={getUser()?.clinic_name} />
       {showFilter && (
         <View style={s.filterBar}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>

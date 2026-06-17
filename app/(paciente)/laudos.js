@@ -4,8 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { api } from '../../services/api';
+import { api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+import ScreenHeader from '../../components/ScreenHeader';
 
 export default function LaudosScreen() {
   const [laudos, setLaudos] = useState([]);
@@ -52,6 +53,7 @@ export default function LaudosScreen() {
 
   return (
     <View style={s.container}>
+      <ScreenHeader title="Meus Laudos" right={getUser()?.clinic_name} />
       <FlatList
         data={laudos}
         keyExtractor={(item) => item.id}

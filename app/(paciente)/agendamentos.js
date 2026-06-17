@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../../services/api';
+import { api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
+import ScreenHeader from '../../components/ScreenHeader';
 
 const statusColors = {
   Agendado: { bg: '#EEF2FF', text: '#4F46E5' },
@@ -127,6 +128,7 @@ export default function AgendamentosScreen() {
 
   return (
     <View style={s.container}>
+      <ScreenHeader title="Minhas Consultas" right={getUser()?.clinic_name} />
       <FlatList
         data={[...futureAppts, ...pastAppts]}
         keyExtractor={(item) => item.id}

@@ -1,18 +1,12 @@
 import { useEffect } from 'react';
-import { Tabs, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Platform, StyleSheet, Text } from 'react-native';
-import { Colors } from '../../services/theme';
-import { getUser } from '../../services/api';
+import { useRouter } from 'expo-router';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import { PregnancyProvider, usePregnancy } from '../../services/pregnancy-context';
 import { NotificationsProvider, useNotifications } from '../../services/notifications-context';
 import { registerForPushNotifications, setupNotificationTapHandler } from '../../services/pushNotifications';
-import { GlassView, isLiquidGlass } from '../../components/glass/GlassView';
 
 function TabsInner() {
-  const user = getUser();
-  const clinicName = user?.clinic_name || '';
-  const { data, loading } = usePregnancy();
+  const { data } = usePregnancy();
   const { reload: reloadNotifs } = useNotifications();
   const router = useRouter();
 
@@ -29,102 +23,57 @@ function TabsInner() {
     return () => clearInterval(interval);
   }, [reloadNotifs]);
 
-  // Enquanto carrega, esconde tabs obstétricas (evita "flash" + click acidental).
-  // Quando data está null por erro, também trata como não-gestante.
+  // Abas obstétricas só aparecem na gestação. Enquanto carrega, data é null → ficam escondidas
+  // (evita "flash" + clique acidental). Chat segue o estado do PRÓPRIO chat (puerpério ACTIVE/CLOSING).
+  // Documentos vira aba visível quando NÃO-gestante (atalho central); na gestação fica via push.
   const hasPregnancy = !!data?.pregnancy;
-  const obstHref = hasPregnancy ? undefined : null;
-  // v0.0.109: tab Chat segue estado do PRÓPRIO chat (não da gestação).
-  // Chat continua acessível durante puerpério (ACTIVE/CLOSING) mesmo com pregnancy=null.
   const chatActive = ['ACTIVE', 'CLOSING'].includes(data?.chat?.state);
-  const chatHref = chatActive ? undefined : null;
-  // Documentos vira tab visível quando não-gestante (vira atalho central).
-  // Quando gestante, fica acessível via push (atalhos do início).
-  const docsHref = hasPregnancy ? null : undefined;
 
+  // Barra de abas NATIVA (UITabBar) — iOS 26 aplica o Liquid Glass automaticamente.
+  // Cada tela traz o próprio cabeçalho (ScreenHeader ou header próprio). `hidden` controla
+  // o que aparece na barra; rotas hidden continuam navegáveis (push / navegação interna).
   return (
-    <Tabs screenOptions={{
-      headerStyle: { backgroundColor: Colors.white },
-      headerTintColor: Colors.text,
-      headerTitleStyle: { fontWeight: '700' },
-      tabBarActiveTintColor: Colors.primary,
-      tabBarInactiveTintColor: Colors.textMuted,
-      // v0.2 Liquid Glass: tab bar flutuante com material translúcido.
-      // position absolute libera o conteúdo das telas a passar por baixo
-      // (efeito iOS premium). Border top sutil cria a "linha de luz" do glass.
-      tabBarStyle: {
-        position: 'absolute',
-        borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
-        borderTopColor: 'rgba(0,0,0,0.06)',
-        // iOS 26: barra transparente + Liquid Glass real. Senão: barra branca clara e limpa.
-        backgroundColor: isLiquidGlass ? 'transparent' : 'rgba(255,255,255,0.94)',
-        elevation: 0, // remove sombra Android (glass faz a separação visual)
-      },
-      tabBarBackground: isLiquidGlass ? () => (
-        <GlassView glassStyle="regular" style={StyleSheet.absoluteFillObject} />
-      ) : undefined,
-      headerRight: clinicName ? () => (
-        <Text style={{ fontSize: 11, color: Colors.textMuted, marginRight: 14, maxWidth: 140 }} numberOfLines={1}>
-          {clinicName}
-        </Text>
-      ) : undefined,
-    }}>
-      <Tabs.Screen name="inicio" options={{
-        title: 'Início',
-        headerShown: false,
-        tabBarIcon: ({ color, size }) => <Ionicons name="heart-circle" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="prenatal" options={{
-        title: 'Pré-natal',
-        headerShown: false,
-        href: obstHref,
-        tabBarIcon: ({ color, size }) => <Ionicons name="pulse" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="chat" options={{
-        title: 'Chat',
-        headerShown: false,
-        href: chatHref,
-        tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="exames" options={{
-        title: 'Exames',
-        headerShown: false,
-        tabBarIcon: ({ color, size }) => <Ionicons name="flask" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="exame-detalhe" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="alertas" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="notificacoes" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="vacinas" options={{
-        title: 'Vacinas',
-        headerShown: false,
-        href: obstHref,
-        tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="plano" options={{
-        title: 'Plano',
-        headerShown: false,
-        href: obstHref,
-        tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="agendamentos" options={{
-        href: null,
-        headerTitle: 'Minhas Consultas',
-      }} />
-      <Tabs.Screen name="laudos" options={{
-        href: null,
-        headerTitle: 'Meus Laudos',
-      }} />
-      <Tabs.Screen name="documentos" options={{
-        title: 'Documentos',
-        href: docsHref,
-        headerTitle: 'Meus Documentos',
-        tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="perfil" options={{
-        title: 'Perfil',
-        headerTitle: 'Meu Perfil',
-        tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} />,
-      }} />
-    </Tabs>
+    <NativeTabs>
+      <NativeTabs.Trigger name="inicio">
+        <Icon sf={{ default: 'heart.circle', selected: 'heart.circle.fill' }} />
+        <Label>Início</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="prenatal" hidden={!hasPregnancy}>
+        <Icon sf={{ default: 'waveform.path.ecg', selected: 'waveform.path.ecg' }} />
+        <Label>Pré-natal</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="chat" hidden={!chatActive}>
+        <Icon sf={{ default: 'message', selected: 'message.fill' }} />
+        <Label>Chat</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="exames">
+        <Icon sf={{ default: 'cross.case', selected: 'cross.case.fill' }} />
+        <Label>Exames</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="vacinas" hidden={!hasPregnancy}>
+        <Icon sf={{ default: 'syringe', selected: 'syringe.fill' }} />
+        <Label>Vacinas</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="plano" hidden={!hasPregnancy}>
+        <Icon sf={{ default: 'list.clipboard', selected: 'list.clipboard.fill' }} />
+        <Label>Plano</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="documentos" hidden={hasPregnancy}>
+        <Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} />
+        <Label>Documentos</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="perfil">
+        <Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} />
+        <Label>Perfil</Label>
+      </NativeTabs.Trigger>
+
+      {/* Rotas navegáveis, mas fora da barra (abertas por push ou navegação interna) */}
+      <NativeTabs.Trigger name="exame-detalhe" hidden />
+      <NativeTabs.Trigger name="alertas" hidden />
+      <NativeTabs.Trigger name="notificacoes" hidden />
+      <NativeTabs.Trigger name="agendamentos" hidden />
+      <NativeTabs.Trigger name="laudos" hidden />
+    </NativeTabs>
   );
 }
 

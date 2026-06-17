@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import { requestPontoPermissions, captureSelfie, getCurrentLocation, registrarPonto } from '../../services/pontoCapture';
+import ScreenHeader from '../../components/ScreenHeader';
 
 // Tipos seguindo backend (server.js:23287)
 const TYPES = {
@@ -134,10 +135,13 @@ export default function PontoScreen() {
 
   if (!hasJornada) {
     return (
-      <View style={s.center}>
-        <Ionicons name="settings-outline" size={48} color={Colors.textMuted} />
-        <Text style={s.emptyTitle}>Ponto não configurado</Text>
-        <Text style={s.emptyText}>Solicite ao administrador que configure sua jornada de trabalho.</Text>
+      <View style={s.container}>
+        <ScreenHeader title="Ponto" right={getUser()?.clinic_name} />
+        <View style={s.center}>
+          <Ionicons name="settings-outline" size={48} color={Colors.textMuted} />
+          <Text style={s.emptyTitle}>Ponto não configurado</Text>
+          <Text style={s.emptyText}>Solicite ao administrador que configure sua jornada de trabalho.</Text>
+        </View>
       </View>
     );
   }
@@ -148,7 +152,9 @@ export default function PontoScreen() {
   const next = TYPES[nextType];
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: Spacing.md }}>
+    <View style={s.container}>
+      <ScreenHeader title="Ponto" right={getUser()?.clinic_name} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md }}>
       <Text style={s.greeting}>{greeting()}</Text>
       <View style={s.statusRow}>
         <View style={[s.statusDot, { backgroundColor: status.color }]} />
@@ -229,6 +235,7 @@ export default function PontoScreen() {
         })
       )}
     </ScrollView>
+    </View>
   );
 }
 
