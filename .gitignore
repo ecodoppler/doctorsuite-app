@@ -31,7 +31,13 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
+!.env.example
 .env*.local
+
+# credenciais (chave .p8 da Apple, ASC API key etc.) — NUNCA versionar
+credentials/
 
 # typescript
 *.tsbuildinfo
