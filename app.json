@@ -57,7 +57,8 @@
           "locationWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021)."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
