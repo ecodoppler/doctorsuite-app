@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View, StyleSheet, AppState, Platform } from 'react-native';
 import { Colors } from '../../services/theme';
@@ -54,6 +55,15 @@ export default function MedicoLayout() {
     return cleanup;
   }, [router]);
 
+  // Estilo base da tab bar (extraído pra poder esconder na conversa do chat).
+  const tabBarStyle = {
+    position: 'absolute',
+    borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: isLiquidGlass ? 'transparent' : 'rgba(255,255,255,0.94)',
+    elevation: 0,
+  };
+
   return (
     <Tabs screenOptions={{
       headerStyle: { backgroundColor: Colors.white },
@@ -61,15 +71,8 @@ export default function MedicoLayout() {
       headerTitleStyle: { fontWeight: '700' },
       tabBarActiveTintColor: Colors.primary,
       tabBarInactiveTintColor: Colors.textMuted,
-      // v0.2 Liquid Glass: tab bar flutuante translúcida (idem paciente layout)
-      tabBarStyle: {
-        position: 'absolute',
-        borderTopWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0,
-        borderTopColor: 'rgba(0,0,0,0.06)',
-        // iOS 26: barra transparente + Liquid Glass real. Senão: barra branca clara e limpa.
-        backgroundColor: isLiquidGlass ? 'transparent' : 'rgba(255,255,255,0.94)',
-        elevation: 0,
-      },
+      // iOS 26: barra transparente + Liquid Glass real. Senão: barra branca clara e limpa.
+      tabBarStyle,
       tabBarBackground: isLiquidGlass ? () => (
         <GlassView glassStyle="regular" style={StyleSheet.absoluteFillObject} />
       ) : undefined,
@@ -89,10 +92,16 @@ export default function MedicoLayout() {
         headerTitle: 'Prontuário',
         tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
       }} />
-      <Tabs.Screen name="chat" options={{
-        title: 'Chat',
-        headerShown: false,
-        tabBarIcon: ({ color, size }) => <ChatTabIcon color={color} size={size} />,
+      <Tabs.Screen name="chat" options={({ route }) => {
+        // Dentro de uma conversa ([id]): esconde a tab bar → vira tela cheia, sem a barra
+        // flutuante cobrindo o campo de mensagem. Na lista (index): barra normal.
+        const focused = getFocusedRouteNameFromRoute(route) ?? 'index';
+        return {
+          title: 'Chat',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <ChatTabIcon color={color} size={size} />,
+          tabBarStyle: focused === '[id]' ? { display: 'none' } : tabBarStyle,
+        };
       }} />
       <Tabs.Screen name="perfil" options={{
         title: 'Perfil',
