@@ -7,10 +7,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../../services/api';
-import { Fonts, Status, Warm } from '../../services/theme';
-import { pickAndUploadChatImage } from '../../services/chatImage';
-import ChatImage from '../../components/chat/ChatImage';
+import { api } from '../../../services/api';
+import { Fonts, Status, Warm } from '../../../services/theme';
+import { pickAndUploadChatImage } from '../../../services/chatImage';
+import ChatImage from '../../../components/chat/ChatImage';
 
 const STATE_COLORS = {
   ACTIVE: '#10b981',

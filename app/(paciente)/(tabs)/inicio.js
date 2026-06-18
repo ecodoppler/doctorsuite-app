@@ -4,14 +4,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Card from '../../components/pregnancy/Card';
-import RiskBadge from '../../components/pregnancy/RiskBadge';
-import ProgressRing from '../../components/pregnancy/ProgressRing';
-import Chip from '../../components/pregnancy/Chip';
-import SectionTitle from '../../components/pregnancy/SectionTitle';
-import { Fonts, Status, Warm } from '../../services/theme';
-import { usePregnancy } from '../../services/pregnancy-context';
-import { useNotifications } from '../../services/notifications-context';
+import Card from '../../../components/pregnancy/Card';
+import RiskBadge from '../../../components/pregnancy/RiskBadge';
+import ProgressRing from '../../../components/pregnancy/ProgressRing';
+import Chip from '../../../components/pregnancy/Chip';
+import SectionTitle from '../../../components/pregnancy/SectionTitle';
+import { Fonts, Status, Warm } from '../../../services/theme';
+import { usePregnancy } from '../../../services/pregnancy-context';
+import { useNotifications } from '../../../services/notifications-context';
 
 const firstName = (full) => (full || '').trim().split(' ')[0] || '';
 

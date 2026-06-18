@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { getUser, logout, deleteAccount } from '../../services/api';
-import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
-import ScreenHeader from '../../components/ScreenHeader';
+import { getUser, logout, deleteAccount } from '../../../services/api';
+import { Colors, Spacing, FontSize, Radius } from '../../../services/theme';
+import ScreenHeader from '../../../components/ScreenHeader';
 import {
   isSupported as bioIsSupported,
   isEnabled as bioIsEnabled,
@@ -12,7 +12,7 @@ import {
   authenticate as bioAuthenticate,
   getBiometricLabel,
   touchActive as bioTouchActive,
-} from '../../services/biometric';
+} from '../../../services/biometric';
 
 export default function PerfilScreen() {
   const router = useRouter();

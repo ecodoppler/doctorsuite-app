@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWindowDimensions, ScrollView, View, Text, StyleSheet, ActivityIndicator, RefreshControl, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import VFHeader from '../../components/pregnancy/VFHeader';
-import Card from '../../components/pregnancy/Card';
-import SectionTitle from '../../components/pregnancy/SectionTitle';
-import Spark from '../../components/pregnancy/Spark';
-import { api } from '../../services/api';
-import { Fonts, Status, Warm } from '../../services/theme';
-import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
+import VFHeader from '../../../components/pregnancy/VFHeader';
+import Card from '../../../components/pregnancy/Card';
+import SectionTitle from '../../../components/pregnancy/SectionTitle';
+import Spark from '../../../components/pregnancy/Spark';
+import { api } from '../../../services/api';
+import { Fonts, Status, Warm } from '../../../services/theme';
+import ClinicalDisclaimer from '../../../components/ClinicalDisclaimer';
 
 const COLS = [
   { key: 'date',   label: 'Data',  flex: 1 },

@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import VFHeader from '../../components/pregnancy/VFHeader';
-import Card from '../../components/pregnancy/Card';
-import SectionTitle from '../../components/pregnancy/SectionTitle';
-import { api } from '../../services/api';
-import { Fonts, Status, Warm } from '../../services/theme';
+import VFHeader from '../../../components/pregnancy/VFHeader';
+import Card from '../../../components/pregnancy/Card';
+import SectionTitle from '../../../components/pregnancy/SectionTitle';
+import { api } from '../../../services/api';
+import { Fonts, Status, Warm } from '../../../services/theme';
 
 const TRIM_KEYS = ['T1', 'T2', 'T3'];
 

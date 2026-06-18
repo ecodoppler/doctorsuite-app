@@ -1,13 +1,18 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import RiskBadge from './RiskBadge';
 import { Fonts, Warm } from '../../services/theme';
 
 // Header reutilizado pelas telas 02–05 do Cartão da Gestante.
 // Sem tab strip (a navegação entre seções é feita pela bottom nav).
+// Quando a tela foi EMPILHADA sobre as abas (router.canGoBack()), mostra um "voltar".
 export default function VFHeader({ patient, pregnancy }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const canBack = router.canGoBack();
   const igTotal = pregnancy.igWeeks * 7 + pregnancy.igDays;
   const pct = (igTotal / 280) * 100;
 
@@ -22,6 +27,11 @@ export default function VFHeader({ patient, pregnancy }) {
       <View style={s.halo} pointerEvents="none" />
 
       <View style={s.topRow}>
+        {canBack ? (
+          <Pressable onPress={() => router.back()} hitSlop={10} style={s.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </Pressable>
+        ) : null}
         <View style={s.identity}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>{patient.initials}</Text>
@@ -77,6 +87,7 @@ const s = StyleSheet.create({
   },
 
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  backBtn: { marginRight: 6, marginLeft: -4 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 10 },
   avatar: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontFamily: Fonts.uiBold, fontSize: 12 },

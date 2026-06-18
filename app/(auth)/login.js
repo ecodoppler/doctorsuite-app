@@ -58,7 +58,7 @@ export default function LoginScreen() {
       } else if (role === 'secretaria') {
         router.replace('/(secretaria)/agendas');
       } else {
-        router.replace('/(paciente)/agendamentos');
+        router.replace('/(paciente)/inicio');
       }
     } catch (err) {
       Alert.alert('Erro', err.message || 'Não foi possível fazer login.');
@@ -89,7 +89,7 @@ export default function LoginScreen() {
         return;
       }
       setClinics(null);
-      router.replace('/(paciente)/agendamentos');
+      router.replace('/(paciente)/inicio');
     } catch (err) {
       Alert.alert('Erro', err.message || 'Não foi possível verificar seus dados.');
     } finally { setLoading(false); }
