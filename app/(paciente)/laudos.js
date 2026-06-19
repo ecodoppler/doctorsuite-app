@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import { api, getUser } from '../../services/api';
+import { api, getUser, API_BASE } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
 
@@ -47,6 +45,22 @@ export default function LaudosScreen() {
       .replace(/&gt;/g, '>')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+  };
+
+  // Abre o PDF assinado do laudo: pega a URL (R2 assinada) e abre no navegador interno,
+  // onde o iOS oferece salvar/compartilhar/imprimir. has_pdf vem do /api/my-reports.
+  const openPdf = async (report) => {
+    if (!report?.id) return;
+    setBusyId(report.id);
+    try {
+      const r = await api(`/api/my-reports/${report.id}/pdf-url`);
+      const raw = r?.url;
+      if (!raw) { Alert.alert('Laudo', 'O PDF deste laudo ainda não está disponível.'); return; }
+      const url = String(raw).startsWith('http') ? raw : `${API_BASE}${raw}`;
+      await WebBrowser.openBrowserAsync(url);
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível abrir o PDF do laudo.');
+    } finally { setBusyId(null); }
   };
 
   if (loading) return <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
@@ -100,6 +114,16 @@ export default function LaudosScreen() {
               <Ionicons name="person-outline" size={16} color={Colors.textSecondary} />
               <Text style={s.metaText}>Dr(a). {selected?.doctor_name || 'Médico'}</Text>
             </View>
+
+            {selected?.has_pdf ? (
+              <TouchableOpacity style={s.pdfBtn} onPress={() => openPdf(selected)} disabled={busyId === selected?.id} activeOpacity={0.85}>
+                {busyId === selected?.id
+                  ? <ActivityIndicator color="#fff" />
+                  : (<><Ionicons name="document-text" size={18} color="#fff" /><Text style={s.pdfBtnText}>Abrir PDF do laudo</Text></>)}
+              </TouchableOpacity>
+            ) : (
+              <Text style={s.pdfNote}>O PDF é gerado quando o laudo é assinado pelo médico.</Text>
+            )}
 
             {selected?.observations ? (
               <View style={s.section}>
@@ -159,4 +183,7 @@ const s = StyleSheet.create({
   },
   sectionTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
   bodyText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 22 },
+  pdfBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 13, marginTop: Spacing.md },
+  pdfBtnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.md },
+  pdfNote: { marginTop: Spacing.md, fontSize: FontSize.sm, color: Colors.textMuted, fontStyle: 'italic' },
 });
