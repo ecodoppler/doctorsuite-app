@@ -34,28 +34,34 @@ export default function PontoScreen() {
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
   const [hasJornada, setHasJornada] = useState(true);
+  const [loadError, setLoadError] = useState(false); // v0.0.650: distingue erro de rede de "sem jornada"
   const [tick, setTick] = useState(0); // refresh do relógio
 
   const load = useCallback(async () => {
+    setLoadError(false);
+    // v0.0.650: a jornada decide "configurado" — NÃO engolir o erro (antes, um 500/queda de rede
+    // virava [] → falso "Ponto não configurado"). Erro de rede → estado de erro com "Tentar de novo".
+    let jornada;
     try {
-      const [jornada, cfg] = await Promise.all([
-        api('/api/ponto/minha-jornada').catch(() => []),
-        api('/api/ponto/config').catch(() => null),
-      ]);
-      if (!jornada || jornada.length === 0) {
-        setHasJornada(false);
-        setLoading(false);
-        return;
-      }
-      setConfig(cfg);
-      const today = new Date().toISOString().slice(0, 10);
-      const data = await api(`/api/ponto/meus-registros?date=${today}`).catch(() => []);
-      setRecords(Array.isArray(data) ? data : []);
+      jornada = await api('/api/ponto/minha-jornada');
     } catch (e) {
-      console.warn('[ponto/load]', e?.message);
-    } finally {
+      console.warn('[ponto/jornada]', e?.message);
+      setLoadError(true);
       setLoading(false);
+      return;
     }
+    if (!jornada || jornada.length === 0) {
+      setHasJornada(false);
+      setLoading(false);
+      return;
+    }
+    setHasJornada(true);
+    const cfg = await api('/api/ponto/config').catch(() => null);
+    setConfig(cfg);
+    const today = new Date().toISOString().slice(0, 10);
+    const data = await api(`/api/ponto/meus-registros?date=${today}`).catch(() => []);
+    setRecords(Array.isArray(data) ? data : []);
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -131,6 +137,22 @@ export default function PontoScreen() {
 
   if (loading) {
     return <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
+  }
+
+  if (loadError) {
+    return (
+      <View style={s.container}>
+        <ScreenHeader title="Ponto" right={getUser()?.clinic_name} />
+        <View style={s.center}>
+          <Ionicons name="cloud-offline-outline" size={48} color={Colors.textMuted} />
+          <Text style={s.emptyTitle}>Não foi possível carregar</Text>
+          <Text style={s.emptyText}>Verifique sua conexão e tente novamente.</Text>
+          <TouchableOpacity onPress={() => { setLoading(true); load(); }} style={s.retryBtn} activeOpacity={0.8}>
+            <Text style={s.retryText}>Tentar de novo</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   if (!hasJornada) {
@@ -266,4 +288,6 @@ const s = StyleSheet.create({
   selfieThumb: { width: 32, height: 32, borderRadius: 16 },
   emptyTitle: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.text, marginTop: Spacing.md },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm, maxWidth: 280 },
+  retryBtn: { marginTop: Spacing.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.md, backgroundColor: Colors.primary },
+  retryText: { color: '#fff', fontWeight: '700', fontSize: FontSize.md },
 });
