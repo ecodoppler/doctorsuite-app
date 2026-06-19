@@ -6,6 +6,40 @@ import { api, getUser, API_BASE } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
 
+// v0.0.649: rótulo do laudo a partir do exam_type (antes mostrava só "Laudo" genérico).
+// Cobre laudos próprios + resultados de imagem (US/mamografia/raio-X/etc.). Tipo desconhecido
+// (ex.: "Outro" texto livre) cai no fallback: troca _ por espaço + capitaliza.
+const EXAM_LABELS = {
+  us_obstetrica: 'US Obstétrica',
+  us_obs_1tri_abd: 'US Obstétrica 1º Tri',
+  us_obs_1tri_tv: 'US Obstétrica 1º Tri (TV)',
+  us_morfo_1tri: 'US Morfológica 1º Tri',
+  us_morfo_2tri: 'US Morfológica 2º Tri',
+  doppler_obstetrico: 'Doppler Obstétrico',
+  perfil_biofisico: 'Perfil Biofísico Fetal',
+  cardiotocografia: 'Cardiotocografia',
+  ecocardiografia_fetal: 'Ecocardiografia Fetal',
+  us_pelvica_tv: 'US Pélvica (TV)',
+  us_pelvica_abd: 'US Pélvica (Abdominal)',
+  us_mamas: 'US Mamas',
+  us_tireoide: 'US Tireoide',
+  us_abdome: 'US Abdome',
+  us_rins_vias: 'US Rins e Vias Urinárias',
+  us_geral: 'Ultrassonografia',
+  mamografia: 'Mamografia',
+  densitometria: 'Densitometria Óssea',
+  raio_x: 'Raio-X',
+  tomografia: 'Tomografia Computadorizada',
+  ressonancia: 'Ressonância Magnética',
+  cintilografia: 'Cintilografia',
+  colposcopia: 'Colposcopia',
+};
+function examLabel(type) {
+  if (!type) return 'Laudo';
+  if (EXAM_LABELS[type]) return EXAM_LABELS[type];
+  return String(type).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function LaudosScreen() {
   const [laudos, setLaudos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +111,7 @@ export default function LaudosScreen() {
           <TouchableOpacity style={s.card} onPress={() => setSelected(item)} activeOpacity={0.7}>
             <Ionicons name="document-text" size={24} color={Colors.primary} />
             <View style={{ flex: 1, marginLeft: Spacing.md }}>
-              <Text style={s.title}>{item.template_name || item.report_type || 'Laudo'}</Text>
+              <Text style={s.title}>{item.template_name || item.report_type || examLabel(item.exam_type)}</Text>
               <Text style={s.subtitle}>{formatDate(item.created_at)}</Text>
               <Text style={s.doctor}>Dr(a). {item.doctor_name || 'Médico'}</Text>
             </View>
@@ -100,7 +134,7 @@ export default function LaudosScreen() {
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
             <Text style={s.modalTitle} numberOfLines={1}>
-              {selected?.template_name || selected?.report_type || 'Laudo'}
+              {selected?.template_name || selected?.report_type || examLabel(selected?.exam_type)}
             </Text>
             <View style={{ width: 40 }} />
           </View>
