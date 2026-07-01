@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ScrollView, View, Text, TextInput, Pressable, StyleSheet, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Linking,
+  ActivityIndicator, KeyboardAvoidingView, Keyboard, Platform, Modal, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,12 @@ const STATE_COLORS = {
   INACTIVE: '#9ca3af',
   DISABLED: '#9ca3af',
 };
+
+const PATIENT_NATIVE_TAB_BAR_RESERVE = Platform.select({
+  ios: 96,
+  android: 76,
+  default: 84,
+});
 
 function fmtTime(iso) {
   if (!iso) return '';
@@ -104,8 +110,20 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [showUrgency, setShowUrgency] = useState(false);
   const [acceptingDisclaimer, setAcceptingDisclaimer] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scrollRef = useRef(null);
   const pollTimer = useRef(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     try {
@@ -220,12 +238,15 @@ export default function ChatScreen() {
     : (chatConfig.doctorFallbackLabel || 'Seu médico');
   const canSend = ['ACTIVE', 'CLOSING'].includes(state);
   const showDisclaimer = canSend && doctor && !data.disclaimer_accepted;
+  const tabBarBottomReserve = keyboardVisible
+    ? 0
+    : PATIENT_NATIVE_TAB_BAR_RESERVE + (Platform.OS === 'android' ? insets.bottom : 0);
 
   // Estado sem chat ativo (sem médico, encerrado, bloqueado, desabilitado)
   if (!doctor || ['CLOSED', 'BLOCKED', 'INACTIVE', 'DISABLED'].includes(state)) {
     return (
       <LinearGradient colors={Warm.coverGradient} locations={Warm.coverGradientStops} style={s.gradient}>
-        <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 80, flexGrow: 1 }}>
+        <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: tabBarBottomReserve + 80, flexGrow: 1 }}>
           <View style={s.emptyWrap}>
             <View style={[s.emptyIcon, { backgroundColor: stateColor + '22' }]}>
               <Ionicons
@@ -326,41 +347,42 @@ export default function ChatScreen() {
         })}
       </ScrollView>
 
-      <Pressable onPress={() => setShowUrgency(true)} style={s.urgencyBar}>
-        <Ionicons name="warning-outline" size={14} color="#dc2626" />
-        <Text style={s.urgencyBarText}>{emergency.title || 'Em caso de emergência'}</Text>
-        <Ionicons name="chevron-forward" size={14} color="#dc2626" />
-      </Pressable>
-
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
-        <View style={[s.inputArea, { paddingBottom: insets.bottom + 8 }]}>
-          <Pressable
-            onPress={sendImage}
-            disabled={sending}
-            style={({ pressed }) => [s.attachBtn, pressed && { opacity: 0.6 }]}
-            hitSlop={8}
-          >
-            <Ionicons name="image-outline" size={22} color={Warm.accentDeep} />
+        <View style={[s.footer, { paddingBottom: tabBarBottomReserve }]}>
+          <Pressable onPress={() => setShowUrgency(true)} style={s.urgencyBar}>
+            <Ionicons name="warning-outline" size={14} color="#dc2626" />
+            <Text style={s.urgencyBarText}>{emergency.title || 'Em caso de emergência'}</Text>
+            <Ionicons name="chevron-forward" size={14} color="#dc2626" />
           </Pressable>
-          <TextInput
-            style={s.input}
-            placeholder="Digite uma mensagem..."
-            placeholderTextColor={Status.slate}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={4000}
-            editable={!sending}
-          />
-          <Pressable
-            onPress={send}
-            style={({ pressed }) => [s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled, pressed && { opacity: 0.7 }]}
-            disabled={!text.trim() || sending}
-          >
-            {sending
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Ionicons name="send" size={18} color="#fff" />}
-          </Pressable>
+          <View style={s.inputArea}>
+            <Pressable
+              onPress={sendImage}
+              disabled={sending}
+              style={({ pressed }) => [s.attachBtn, pressed && { opacity: 0.6 }]}
+              hitSlop={8}
+            >
+              <Ionicons name="image-outline" size={22} color={Warm.accentDeep} />
+            </Pressable>
+            <TextInput
+              style={s.input}
+              placeholder="Digite uma mensagem..."
+              placeholderTextColor={Status.slate}
+              value={text}
+              onChangeText={setText}
+              multiline
+              maxLength={4000}
+              editable={!sending}
+            />
+            <Pressable
+              onPress={send}
+              style={({ pressed }) => [s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled, pressed && { opacity: 0.7 }]}
+              disabled={!text.trim() || sending}
+            >
+              {sending
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Ionicons name="send" size={18} color="#fff" />}
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -445,7 +467,8 @@ const s = StyleSheet.create({
   urgencyBarText: { fontFamily: Fonts.uiBold, fontSize: 11.5, color: '#dc2626' },
 
   // Input
-  inputArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingHorizontal: 10, paddingTop: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  footer: { backgroundColor: '#fff' },
+  inputArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
   attachBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, fontFamily: Fonts.ui, fontSize: 14, color: Status.ink, backgroundColor: '#f3f4f6', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, maxHeight: 120, minHeight: 38 },
   sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Warm.accentDeep, alignItems: 'center', justifyContent: 'center' },
