@@ -64,7 +64,7 @@ export async function clearEnabled() {
   await storage.del(KEYS.enabled);
 }
 
-export async function authenticate(reason = 'Entrar no DoctorSuite') {
+export async function authenticate(reason = 'Entrar no app') {
   if (Platform.OS === 'web') return { success: false, error: 'web_unsupported' };
   try {
     const res = await LocalAuthentication.authenticateAsync({

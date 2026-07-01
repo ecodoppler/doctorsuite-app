@@ -7,8 +7,11 @@ import { useRouter } from 'expo-router';
 import { login, loginAsPatient } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppConfig } from '../../services/app-config';
 
 export default function LoginScreen() {
+  const { config, reload: reloadAppConfig } = useAppConfig();
+  const brand = config.brand || {};
   const [mode, setMode] = useState('profissional');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,6 +55,7 @@ export default function LoginScreen() {
         Alert.alert('Verificação em 2 etapas', data.error || 'Digite o código do seu app autenticador.');
         return;
       }
+      await reloadAppConfig();
       const role = data.user?.role;
       if (role === 'admin' || role === 'medico') {
         router.replace('/(medico)/agenda');
@@ -89,6 +93,7 @@ export default function LoginScreen() {
         return;
       }
       setClinics(null);
+      await reloadAppConfig();
       router.replace('/(paciente)/inicio');
     } catch (err) {
       Alert.alert('Erro', err.message || 'Não foi possível verificar seus dados.');
@@ -98,9 +103,13 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={s.inner}>
-        <Image source={require('../../assets/images/logo.png')} style={s.logo} resizeMode="contain" />
-        <Text style={s.title}>DoctorSuite</Text>
-        <Text style={s.subtitle}>Sistema Médico</Text>
+        <Image
+          source={brand.logoUrl ? { uri: brand.logoUrl } : require('../../assets/images/logo.png')}
+          style={s.logo}
+          resizeMode="contain"
+        />
+        <Text style={s.title}>{brand.appName || 'DoctorSuite'}</Text>
+        <Text style={s.subtitle}>{brand.subtitle || 'Sistema Médico'}</Text>
 
         <View style={s.tabs}>
           <TouchableOpacity style={[s.tab, mode === 'profissional' && s.tabActive]} onPress={() => setMode('profissional')}>
@@ -149,7 +158,7 @@ export default function LoginScreen() {
           </View>
           <Text style={s.consentText}>
             Li e aceito a{' '}
-            <Text style={s.link} onPress={() => Linking.openURL('https://doctorsuite.app/privacy')}>Política de Privacidade</Text>
+            <Text style={s.link} onPress={() => Linking.openURL(brand.privacyUrl || 'https://doctorsuite.app/privacy')}>Política de Privacidade</Text>
             {' '}e o tratamento dos meus dados de saúde conforme a LGPD.
           </Text>
         </TouchableOpacity>

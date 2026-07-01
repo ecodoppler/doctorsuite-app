@@ -8,11 +8,10 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, getUser } from '../../services/api';
+import { API_BASE, api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
 
-const API_BASE = 'https://doctorsuite.app';
 import { getPendingPatient, onPendingPatient } from '../../services/navigation';
 
 function openWhatsApp(phone) {

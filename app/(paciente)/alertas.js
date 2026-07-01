@@ -1,20 +1,40 @@
+import { useEffect, useState } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
-import { PATIENT, ALERTS } from '../../services/pregnancyMock';
 import { Fonts, Status, Warm } from '../../services/theme';
+import { api } from '../../services/api';
+import { useAppConfig } from '../../services/app-config';
 
 export default function AlertasScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const m = PATIENT.maternity;
+  const { config } = useAppConfig();
+  const emergency = config.patient?.emergency || {};
+  const [maternity, setMaternity] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    api('/api/my-pregnancy/birth-plan')
+      .then((r) => { if (mounted) setMaternity(r?.maternity || null); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  const carePlace = emergency.carePlaceLabel || 'atendimento';
+  const contact = {
+    name: maternity?.name || emergency.contactName || emergency.primaryLabel || 'SAMU',
+    phone: maternity?.phone || emergency.contactPhone || emergency.primaryPhone || '192',
+    distance: maternity?.distance || emergency.distance || '',
+  };
+  const signs = Array.isArray(emergency.signs) ? emergency.signs : [];
 
   const handleCall = () => {
-    if (!m?.phone) return;
-    const digits = m.phone.replace(/\D/g, '');
+    if (!contact.phone) return;
+    const digits = contact.phone.replace(/\D/g, '');
     Linking.openURL(`tel:${digits}`);
   };
 
@@ -41,8 +61,8 @@ export default function AlertasScreen() {
 
         {/* Título humano */}
         <View style={s.titleBlock}>
-          <Text style={s.eyebrow}>Sinais de alerta</Text>
-          <Text style={s.title}>Quando procurar a maternidade</Text>
+          <Text style={s.eyebrow}>{emergency.alertsLabel || 'Sinais de alerta'}</Text>
+          <Text style={s.title}>{emergency.pageTitle || `Quando procurar ${carePlace}`}</Text>
         </View>
 
         {/* SOS card */}
@@ -52,28 +72,30 @@ export default function AlertasScreen() {
               <Text style={s.sosIconText}>🚑</Text>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.sosName} numberOfLines={1}>{m.name}</Text>
+              <Text style={s.sosName} numberOfLines={1}>{contact.name}</Text>
               <Text style={s.sosMeta} numberOfLines={1}>
-                {m.distance ? `${m.distance} · ` : ''}{m.phone}
+                {contact.distance ? `${contact.distance} · ` : ''}{contact.phone}
               </Text>
             </View>
-            <Pressable
-              style={({ pressed }) => [s.sosBtn, pressed && { opacity: 0.85 }]}
-              onPress={handleCall}
-            >
-              <Text style={s.sosBtnText}>LIGAR</Text>
-            </Pressable>
+            {contact.phone ? (
+              <Pressable
+                style={({ pressed }) => [s.sosBtn, pressed && { opacity: 0.85 }]}
+                onPress={handleCall}
+              >
+                <Text style={s.sosBtnText}>{emergency.callToAction || 'LIGAR'}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
         {/* Lista de alertas */}
         <View style={s.section}>
-          <SectionTitle>Procure imediatamente se</SectionTitle>
+          <SectionTitle>{emergency.listTitle || 'Procure imediatamente se'}</SectionTitle>
           <View style={{ gap: 8 }}>
-            {ALERTS.map((a, i) => (
+            {signs.map((a, i) => (
               <View key={i} style={s.alertCard}>
                 <View style={s.alertIcon}>
-                  <Text style={s.alertIconText}>{a.icon}</Text>
+                  <Text style={s.alertIconText}>{a.icon || '!'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.alertTitle}>{a.title}</Text>

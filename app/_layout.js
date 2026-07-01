@@ -8,6 +8,7 @@ import { InterTight_700Bold, InterTight_800ExtraBold } from '@expo-google-fonts/
 import { Fraunces_500Medium_Italic, Fraunces_600SemiBold_Italic } from '@expo-google-fonts/fraunces';
 import { getUser, setLogoutHandler, restoreAuth } from '../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../services/theme';
+import { AppConfigProvider, useAppConfig } from '../services/app-config';
 import {
   isEnabled as bioEnabled,
   authenticate as bioAuthenticate,
@@ -15,6 +16,30 @@ import {
   shouldRelock as bioShouldRelock,
   getBiometricLabel,
 } from '../services/biometric';
+
+function LockedScreen({ bioLabel, tryUnlock, handleLogout }) {
+  const { config } = useAppConfig();
+  const user = getUser();
+  const appName = config.brand?.appName || 'DoctorSuite';
+
+  return (
+    <View style={s.lockContainer}>
+      <StatusBar style="dark" />
+      <View style={s.lockIconWrap}>
+        <Ionicons name="lock-closed" size={48} color={Colors.primary} />
+      </View>
+      <Text style={s.lockTitle}>{appName}</Text>
+      <Text style={s.lockSubtitle}>{user?.name ? `Olá, ${user.name.split(' ')[0]}` : 'Acesso protegido'}</Text>
+      <TouchableOpacity style={s.unlockBtn} onPress={tryUnlock}>
+        <Ionicons name="finger-print" size={20} color={Colors.white} />
+        <Text style={s.unlockBtnText}>Desbloquear com {bioLabel}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={s.logoutLink} onPress={handleLogout}>
+        <Text style={s.logoutLinkText}>Sair da conta</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -96,7 +121,7 @@ export default function RootLayout() {
   }, [isReady, segments, locked]);
 
   const tryUnlock = useCallback(async () => {
-    const res = await bioAuthenticate(`Entrar no DoctorSuite`);
+    const res = await bioAuthenticate('Entrar no app');
     if (res?.success) {
       await bioTouchActive();
       setLocked(false);
@@ -107,48 +132,37 @@ export default function RootLayout() {
     if (locked && isReady) tryUnlock();
   }, [locked, isReady, tryUnlock]);
 
+  let content;
+
   if (!isReady || !fontsLoaded) {
-    return (
+    content = (
       <View style={s.loaderContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
-  }
-
-  if (locked) {
-    const user = getUser();
-    return (
-      <View style={s.lockContainer}>
+  } else if (locked) {
+    content = <LockedScreen bioLabel={bioLabel} tryUnlock={tryUnlock} handleLogout={handleLogout} />;
+  } else {
+    content = (
+      <>
         <StatusBar style="dark" />
-        <View style={s.lockIconWrap}>
-          <Ionicons name="lock-closed" size={48} color={Colors.primary} />
-        </View>
-        <Text style={s.lockTitle}>DoctorSuite</Text>
-        <Text style={s.lockSubtitle}>{user?.name ? `Olá, ${user.name.split(' ')[0]}` : 'Acesso protegido'}</Text>
-        <TouchableOpacity style={s.unlockBtn} onPress={tryUnlock}>
-          <Ionicons name="finger-print" size={20} color={Colors.white} />
-          <Text style={s.unlockBtnText}>Desbloquear com {bioLabel}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.logoutLink} onPress={handleLogout}>
-          <Text style={s.logoutLinkText}>Sair da conta</Text>
-        </TouchableOpacity>
-      </View>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(medico)" />
+          <Stack.Screen name="(secretaria)" />
+          <Stack.Screen name="(paciente)" />
+          {/* Conversa do chat (médico): tela cheia empurrada no Stack RAIZ, acima das abas
+              nativas — assim a barra de abas some na conversa (padrão WhatsApp). */}
+          <Stack.Screen name="conversa/[id]" />
+        </Stack>
+      </>
     );
   }
 
   return (
-    <>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(medico)" />
-        <Stack.Screen name="(secretaria)" />
-        <Stack.Screen name="(paciente)" />
-        {/* Conversa do chat (médico): tela cheia empurrada no Stack RAIZ, acima das abas
-            nativas — assim a barra de abas some na conversa (padrão WhatsApp). */}
-        <Stack.Screen name="conversa/[id]" />
-      </Stack>
-    </>
+    <AppConfigProvider user={getUser()}>
+      {content}
+    </AppConfigProvider>
   );
 }
 

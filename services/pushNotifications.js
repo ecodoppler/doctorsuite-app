@@ -4,6 +4,8 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { api } from './api';
 
+const APP_NAME = Constants.expoConfig?.extra?.appDisplayName || 'DoctorSuite';
+
 // Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -39,7 +41,7 @@ export async function registerForPushNotifications() {
   // Android channel
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync('default', {
-      name: 'DoctorSuite',
+      name: APP_NAME,
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
     });

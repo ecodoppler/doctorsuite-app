@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ScrollView, View, Text, TextInput, Pressable, StyleSheet, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { api } from '../../../services/api';
 import { Fonts, Status, Warm } from '../../../services/theme';
 import { pickAndUploadChatImage } from '../../../services/chatImage';
 import ChatImage from '../../../components/chat/ChatImage';
+import { useAppConfig } from '../../../services/app-config';
 
 const STATE_COLORS = {
   ACTIVE: '#10b981',
@@ -36,23 +37,28 @@ function fmtDateBR(iso) {
 }
 
 // Botão SOS / urgência — mostra modal com contatos da maternidade + 192
-function UrgencyModal({ visible, onClose }) {
+function UrgencyModal({ visible, onClose, emergency }) {
+  const phone = String(emergency?.primaryPhone || '192');
+  const label = emergency?.primaryLabel || 'SAMU';
+  const hint = emergency?.hint || 'Em caso de sinais de alerta, procure atendimento imediatamente.';
+  const handleCall = () => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits) Linking.openURL(`tel:${digits}`).catch(() => {});
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.modalBackdrop} onPress={onClose}>
         <Pressable style={s.urgencyCard} onPress={() => {}}>
           <View style={s.urgencyHeader}>
             <Ionicons name="warning" size={28} color="#dc2626" />
-            <Text style={s.urgencyTitle}>Em caso de emergência</Text>
+            <Text style={s.urgencyTitle}>{emergency?.title || 'Em caso de emergência'}</Text>
           </View>
-          <View style={s.urgencyItem}>
-            <Text style={s.urgencyLabel}>🚑 SAMU</Text>
-            <Text style={s.urgencyPhone}>192</Text>
-          </View>
-          <Text style={s.urgencyHint}>
-            Sinais de alerta como sangramento intenso, dor abdominal forte, perda de líquido,
-            ausência de movimento fetal — procure imediatamente a maternidade.
-          </Text>
+          <Pressable style={s.urgencyItem} onPress={handleCall}>
+            <Text style={s.urgencyLabel}>{label}</Text>
+            <Text style={s.urgencyPhone}>{phone}</Text>
+          </Pressable>
+          <Text style={s.urgencyHint}>{hint}</Text>
           <Pressable style={s.urgencyCloseBtn} onPress={onClose}>
             <Text style={s.urgencyCloseText}>Entendi</Text>
           </Pressable>
@@ -88,6 +94,9 @@ function DisclaimerModal({ visible, text, onAccept, accepting }) {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { config } = useAppConfig();
+  const emergency = config.patient?.emergency || {};
+  const chatConfig = config.patient?.chat || {};
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -205,6 +214,10 @@ export default function ChatScreen() {
   const state = data?.state || 'INACTIVE';
   const stateColor = STATE_COLORS[state] || '#9ca3af';
   const doctor = data?.responsible_doctor;
+  const crmUf = doctor?.crm_uf || config.locale?.defaultCrmUf;
+  const doctorMeta = doctor?.crm
+    ? `${crmUf ? `CRM-${crmUf}` : 'CRM'} ${doctor.crm}`
+    : (chatConfig.doctorFallbackLabel || 'Seu médico');
   const canSend = ['ACTIVE', 'CLOSING'].includes(state);
   const showDisclaimer = canSend && doctor && !data.disclaimer_accepted;
 
@@ -228,7 +241,7 @@ export default function ChatScreen() {
                 : 'Sem atendimento ativo'}
             </Text>
             <Text style={s.emptyText}>
-              {data?.reason || 'Aguarde uma nova gestação ou converse com sua clínica.'}
+              {data?.reason || chatConfig.inactiveReason || 'Aguarde uma nova gestação ou converse com sua clínica.'}
             </Text>
             {data?.expires_on && state === 'CLOSED' && (
               <Text style={s.emptyMeta}>Encerrado em {fmtDateBR(data.expires_on)}</Text>
@@ -250,7 +263,7 @@ export default function ChatScreen() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.doctorName} numberOfLines={1}>{doctor.name}</Text>
               <Text style={s.doctorMeta} numberOfLines={1}>
-                {doctor.crm ? `CRM-${doctor.crm_uf || 'TO'} ${doctor.crm}` : 'Seu médico'}
+                {doctorMeta}
               </Text>
             </View>
           </View>
@@ -274,7 +287,7 @@ export default function ChatScreen() {
             <Ionicons name="chatbubbles-outline" size={36} color={Warm.accentDeep} />
             <Text style={s.welcomeText}>
               Envie sua primeira mensagem para {doctor.name.split(' ')[0]}.{'\n'}
-              Resposta em até 24h em dias úteis.
+              {chatConfig.responseSlaText || 'Resposta em até 24h em dias úteis.'}
             </Text>
           </View>
         )}
@@ -315,7 +328,7 @@ export default function ChatScreen() {
 
       <Pressable onPress={() => setShowUrgency(true)} style={s.urgencyBar}>
         <Ionicons name="warning-outline" size={14} color="#dc2626" />
-        <Text style={s.urgencyBarText}>Em caso de emergência</Text>
+        <Text style={s.urgencyBarText}>{emergency.title || 'Em caso de emergência'}</Text>
         <Ionicons name="chevron-forward" size={14} color="#dc2626" />
       </Pressable>
 
@@ -351,7 +364,7 @@ export default function ChatScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      <UrgencyModal visible={showUrgency} onClose={() => setShowUrgency(false)} />
+      <UrgencyModal visible={showUrgency} onClose={() => setShowUrgency(false)} emergency={emergency} />
       <DisclaimerModal
         visible={!!showDisclaimer}
         text={data.disclaimer_text}

@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api, getUser } from '../../services/api';
+import { API_BASE, api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import { requestPontoPermissions, captureSelfie, getCurrentLocation, registrarPonto } from '../../services/pontoCapture';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -248,7 +248,7 @@ export default function PontoScreen() {
               <Text style={[s.recordTime, { color: t.color }]}>{tStr}</Text>
               {r.selfie_path ? (
                 <Image
-                  source={{ uri: r.selfie_path.startsWith('http') ? r.selfie_path : `https://doctorsuite.app${r.selfie_path}` }}
+                  source={{ uri: r.selfie_path.startsWith('http') ? r.selfie_path : `${API_BASE}${r.selfie_path}` }}
                   style={s.selfieThumb}
                 />
               ) : null}

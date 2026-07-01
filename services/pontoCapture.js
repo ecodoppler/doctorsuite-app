@@ -1,9 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Alert, Linking, Platform } from 'react-native';
-import { getToken } from './api';
-
-const API_BASE = 'https://doctorsuite.app';
+import { API_BASE, getToken } from './api';
 
 // Solicita permissões de câmera + localização (idempotente; OS lembra "permitir/negar").
 export async function requestPontoPermissions() {

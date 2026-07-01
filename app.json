@@ -46,15 +46,15 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "DoctorSuite precisa da câmera para registrar selfie no ponto eletrônico (compliance Portaria 671/2021).",
-          "photosPermission": "DoctorSuite precisa de acesso às fotos para selecionar imagens no chat.",
+          "cameraPermission": "O app precisa da câmera para registrar selfie no ponto eletrônico.",
+          "photosPermission": "O app precisa de acesso às fotos para selecionar imagens no chat.",
           "microphonePermission": false
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "DoctorSuite usa a localização ao registrar ponto eletrônico para validar o geofencing (compliance Portaria 671/2021)."
+          "locationWhenInUsePermission": "O app usa a localização ao registrar ponto eletrônico para validar o geofencing."
         }
       ],
       "expo-notifications",
@@ -64,6 +64,8 @@
       "typedRoutes": true
     },
     "extra": {
+      "apiBaseUrl": "https://doctorsuite.app",
+      "appDisplayName": "DoctorSuite",
       "router": {},
       "eas": {
         "projectId": "5b2eba52-93ce-4064-a5e0-fa377ca6e56f"

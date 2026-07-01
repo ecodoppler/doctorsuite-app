@@ -12,6 +12,7 @@ import SectionTitle from '../../../components/pregnancy/SectionTitle';
 import { Fonts, Status, Warm } from '../../../services/theme';
 import { usePregnancy } from '../../../services/pregnancy-context';
 import { useNotifications } from '../../../services/notifications-context';
+import { useAppConfig } from '../../../services/app-config';
 
 const firstName = (full) => (full || '').trim().split(' ')[0] || '';
 
@@ -40,7 +41,12 @@ export default function InicioScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, loading, error: err, reload } = usePregnancy();
+  const { config, isFeatureEnabled } = useAppConfig();
   const [refreshing, setRefreshing] = useState(false);
+  const pregnancyLabels = config.clinicalModules?.pregnancy?.labels || {};
+  const patientShortcuts = config.patient?.shortcuts || {};
+  const emergency = config.patient?.emergency || {};
+  const shortcutVisible = (a) => a?.target && isFeatureEnabled(a.key);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -80,12 +86,7 @@ export default function InicioScreen() {
 
   // ─── Sem gestação ativa: hub com acesso rápido ───
   if (!pregnancy) {
-    const ACTIONS = [
-      { key: 'agendamentos', label: 'Consultas', icon: 'calendar-outline', target: '/(paciente)/agendamentos' },
-      { key: 'laudos',       label: 'Laudos',    icon: 'document-text-outline', target: '/(paciente)/laudos' },
-      { key: 'documentos',   label: 'Documentos',icon: 'shield-checkmark-outline', target: '/(paciente)/documentos' },
-      { key: 'perfil',       label: 'Perfil',    icon: 'person-circle-outline', target: '/(paciente)/perfil' },
-    ];
+    const ACTIONS = (patientShortcuts.noPregnancy || []).filter(shortcutVisible);
     return (
       <LinearGradient colors={Warm.coverGradient} locations={Warm.coverGradientStops} style={s.gradient}>
         <ScrollView
@@ -97,7 +98,7 @@ export default function InicioScreen() {
           <View style={s.hubHeader}>
             <View style={{ flex: 1 }}>
               <Text style={s.hubEyebrow}>Olá, {firstName(patient.name) || 'paciente'} 👋</Text>
-              <Text style={s.hubGreeting}>Seu cartão</Text>
+              <Text style={s.hubGreeting}>{config.patient?.homeTitle || 'Seu cartão'}</Text>
             </View>
             <NotificationBell onPress={() => router.push('/(paciente)/notificacoes')} />
           </View>
@@ -132,21 +133,25 @@ export default function InicioScreen() {
           )}
 
           {/* Grid 2x2 de ações */}
-          <SectionTitle style={{ marginTop: 18 }}>Acesso rápido</SectionTitle>
-          <View style={s.actionsGrid}>
-            {ACTIONS.map((a) => (
-              <Pressable
-                key={a.key}
-                style={({ pressed }) => [s.actionCard, pressed && { opacity: 0.85 }]}
-                onPress={() => router.push(a.target)}
-              >
-                <View style={s.actionIconWrap}>
-                  <Ionicons name={a.icon} size={26} color={Warm.accentDeep} />
-                </View>
-                <Text style={s.actionLabel}>{a.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {ACTIONS.length > 0 && (
+            <>
+              <SectionTitle style={{ marginTop: 18 }}>Acesso rápido</SectionTitle>
+              <View style={s.actionsGrid}>
+                {ACTIONS.map((a) => (
+                  <Pressable
+                    key={a.key}
+                    style={({ pressed }) => [s.actionCard, pressed && { opacity: 0.85 }]}
+                    onPress={() => router.push(a.target)}
+                  >
+                    <View style={s.actionIconWrap}>
+                      <Ionicons name={a.icon} size={26} color={Warm.accentDeep} />
+                    </View>
+                    <Text style={s.actionLabel}>{a.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
         </ScrollView>
       </LinearGradient>
@@ -162,6 +167,7 @@ export default function InicioScreen() {
   const dppShort = pregnancy.dpp ? pregnancy.dpp.slice(0, 5) : '—';
   const next = pregnancy.next;
   const nextLabel = next ? `${next.date} · ${next.time}` : '—';
+  const shortcuts = (patientShortcuts.pregnancy || []).filter(shortcutVisible);
 
   return (
     <LinearGradient
@@ -177,7 +183,7 @@ export default function InicioScreen() {
         {/* Header warm */}
         <View style={s.header}>
           <View style={{ flex: 1 }}>
-            <Text style={s.eyebrow}>Cartão da Gestante</Text>
+            <Text style={s.eyebrow}>{pregnancyLabels.cardTitle || 'Cartão da Gestante'}</Text>
             <Text style={s.greeting}>Olá, {firstName(patient.name)}</Text>
           </View>
           <NotificationBell onPress={() => router.push('/(paciente)/notificacoes')} />
@@ -188,41 +194,16 @@ export default function InicioScreen() {
         <View style={s.riskRow}>
           <RiskBadge level={patient.risk || 'habitual'} compact />
           <View style={s.shortcuts}>
-            <Pressable
-              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/(paciente)/agendamentos')}
-            >
-              <Ionicons name="calendar-outline" size={13} color={Warm.accentDeep} />
-              <Text style={s.shortcutText}>Consultas</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/(paciente)/laudos')}
-            >
-              <Ionicons name="document-text-outline" size={13} color={Warm.accentDeep} />
-              <Text style={s.shortcutText}>Laudos</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/(paciente)/documentos')}
-            >
-              <Ionicons name="shield-checkmark-outline" size={13} color={Warm.accentDeep} />
-              <Text style={s.shortcutText}>Documentos</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/(paciente)/vacinas')}
-            >
-              <Ionicons name="medkit-outline" size={13} color={Warm.accentDeep} />
-              <Text style={s.shortcutText}>Vacinas</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push('/(paciente)/plano')}
-            >
-              <Ionicons name="clipboard-outline" size={13} color={Warm.accentDeep} />
-              <Text style={s.shortcutText}>Plano</Text>
-            </Pressable>
+            {shortcuts.map((a) => (
+              <Pressable
+                key={a.key}
+                style={({ pressed }) => [s.shortcut, pressed && { opacity: 0.7 }]}
+                onPress={() => router.push(a.target)}
+              >
+                <Ionicons name={a.icon} size={13} color={Warm.accentDeep} />
+                <Text style={s.shortcutText}>{a.label}</Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
@@ -233,7 +214,7 @@ export default function InicioScreen() {
             value={igTotal} max={280}
             color={Warm.accent} track="rgba(255,255,255,0.7)"
           >
-            <Text style={s.ringEyebrow}>Idade gestacional</Text>
+            <Text style={s.ringEyebrow}>{pregnancyLabels.gestationalAge || 'Idade gestacional'}</Text>
             <View style={s.ringIGRow}>
               <Text style={s.ringIG}>{pregnancy.igWeeks}</Text>
               <Text style={s.ringIGSuffix}>s</Text>
@@ -245,15 +226,15 @@ export default function InicioScreen() {
 
         {/* Glance chips 2x2 */}
         <View style={s.chipsGrid}>
-          <View style={s.chipCol}><Chip label="Tipo sanguíneo" value={patient.blood || '—'} /></View>
-          <View style={s.chipCol}><Chip label="Próxima consulta" value={nextLabel} /></View>
-          <View style={s.chipCol}><Chip label="Peso atual" value={patient.weightNow != null ? `${patient.weightNow} kg` : '—'} /></View>
-          <View style={s.chipCol}><Chip label="DPP" value={dppShort} /></View>
+          <View style={s.chipCol}><Chip label={pregnancyLabels.bloodType || 'Tipo sanguíneo'} value={patient.blood || '—'} /></View>
+          <View style={s.chipCol}><Chip label={pregnancyLabels.nextAppointment || 'Próxima consulta'} value={nextLabel} /></View>
+          <View style={s.chipCol}><Chip label={pregnancyLabels.currentWeight || 'Peso atual'} value={patient.weightNow != null ? `${patient.weightNow} kg` : '—'} /></View>
+          <View style={s.chipCol}><Chip label={pregnancyLabels.dueDate || 'DPP'} value={dppShort} /></View>
         </View>
 
         {/* Paridade */}
         <Section>
-          <SectionTitle>Paridade</SectionTitle>
+          <SectionTitle>{pregnancyLabels.parity || 'Paridade'}</SectionTitle>
           <Card padding={12}>
             <View style={s.gpaRow}>
               {[
@@ -384,7 +365,7 @@ export default function InicioScreen() {
 
         {/* Intercorrências */}
         <Section>
-          <SectionTitle>Intercorrências da gestação</SectionTitle>
+          <SectionTitle>{pregnancyLabels.complications || 'Intercorrências da gestação'}</SectionTitle>
           <Card padding={12}>
             {patient.intercorrencias && patient.intercorrencias.length > 0
               ? patient.intercorrencias.map((it, i) => (
@@ -398,18 +379,20 @@ export default function InicioScreen() {
         </Section>
 
         {/* Atalho Sinais de alerta */}
-        <View style={s.alertWrap}>
-          <Pressable style={({ pressed }) => [s.alertCard, pressed && { opacity: 0.7 }]} onPress={() => router.push('/(paciente)/alertas')}>
-            <View style={s.alertIcon}>
-              <Text style={s.alertEmoji}>🚨</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.alertTitle}>Sinais de alerta</Text>
-              <Text style={s.alertSub}>Quando procurar a maternidade imediatamente</Text>
-            </View>
-            <Text style={s.alertChev}>›</Text>
-          </Pressable>
-        </View>
+        {isFeatureEnabled('alerts') && emergency.enabled !== false && (
+          <View style={s.alertWrap}>
+            <Pressable style={({ pressed }) => [s.alertCard, pressed && { opacity: 0.7 }]} onPress={() => router.push('/(paciente)/alertas')}>
+              <View style={s.alertIcon}>
+                <Text style={s.alertEmoji}>🚨</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.alertTitle}>{pregnancyLabels.alerts || 'Sinais de alerta'}</Text>
+                <Text style={s.alertSub}>{pregnancyLabels.alertSubtitle || `Quando procurar ${emergency.carePlaceLabel || 'atendimento'} imediatamente`}</Text>
+              </View>
+              <Text style={s.alertChev}>›</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </LinearGradient>
   );

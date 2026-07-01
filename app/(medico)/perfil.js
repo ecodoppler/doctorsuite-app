@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { getUser, logout, deleteAccount } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
+import { useAppConfig } from '../../services/app-config';
 import {
   isSupported as bioIsSupported,
   isEnabled as bioIsEnabled,
@@ -16,6 +17,8 @@ import {
 
 export default function PerfilScreen() {
   const router = useRouter();
+  const { config } = useAppConfig();
+  const appName = config.brand?.appName || 'DoctorSuite';
   const user = getUser();
   const [bioSupported, setBioSupported] = useState(false);
   const [bioOn, setBioOn] = useState(false);
@@ -136,7 +139,7 @@ export default function PerfilScreen() {
         <Text style={s.deleteText}>Excluir minha conta</Text>
       </TouchableOpacity>
 
-      <Text style={s.version}>DoctorSuite App v1.0.0</Text>
+      <Text style={s.version}>{appName} App v1.0.0</Text>
     </View>
   );
 }

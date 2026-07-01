@@ -1,8 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
-import { getToken } from './api';
-
-const API_BASE = 'https://doctorsuite.app';
+import { API_BASE, getToken } from './api';
 
 // Solicita permissão + abre picker + faz upload. Retorna image_url (R2 key) ou null.
 // patientId: obrigatório quando médico envia. Paciente pode omitir.

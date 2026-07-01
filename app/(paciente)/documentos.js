@@ -7,13 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { api, getToken, getUser } from '../../services/api';
+import { API_BASE, api, getToken, getUser } from '../../services/api';
 import { Fonts, Status, Warm } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
 import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 import Card from '../../components/pregnancy/Card';
-
-const API_BASE = 'https://doctorsuite.app';
 
 const TYPE_FILTERS = [
   { value: 'all', label: 'Todos' },
