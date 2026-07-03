@@ -18,6 +18,15 @@ export const DEFAULT_APP_CONFIG = {
     specialtyLabel: 'Obstetrícia',
   },
   patient: {
+    auth: {
+      mode: 'off',
+      channel: 'whatsapp',
+      whatsappTemplateName: 'doctor_suite_login_otp',
+      whatsappTemplateLanguage: 'pt_BR',
+      otpTtlMinutes: 10,
+      codeLength: 6,
+      helperText: 'Enviaremos um código para o WhatsApp cadastrado na clínica.',
+    },
     features: {
       appointments: true,
       reports: true,

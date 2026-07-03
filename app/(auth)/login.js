@@ -24,6 +24,8 @@ export default function LoginScreen() {
   const [clinics, setClinics] = useState(null);
   const [cpfForClinic, setCpfForClinic] = useState('');
   const [dobForClinic, setDobForClinic] = useState('');
+  const [patientOtp, setPatientOtp] = useState(null);
+  const [otpCode, setOtpCode] = useState('');
   const [consent, setConsent] = useState(false); // LGPD: aceite explícito antes de autenticar
   const router = useRouter();
 
@@ -69,15 +71,22 @@ export default function LoginScreen() {
     } finally { setLoading(false); }
   };
 
-  const handlePatientLogin = async (selectedClinicId) => {
+  const resetPatientOtp = () => {
+    setPatientOtp(null);
+    setOtpCode('');
+    setClinics(null);
+  };
+
+  const handlePatientLogin = async (selectedClinicId, otp = {}) => {
     if (!consent) return Alert.alert('Atenção', 'Para continuar, aceite a Política de Privacidade.');
-    const cpfVal = selectedClinicId ? cpfForClinic : cpf.replace(/\D/g, '');
-    const dobVal = selectedClinicId ? dobForClinic : (() => {
+    const effectiveClinicId = selectedClinicId || patientOtp?.clinic_id;
+    const cpfVal = effectiveClinicId ? cpfForClinic : cpf.replace(/\D/g, '');
+    const dobVal = effectiveClinicId ? dobForClinic : (() => {
       const parts = dob.split('/');
       return parts.length === 3 && parts[2].length === 4 ? `${parts[2]}-${parts[1]}-${parts[0]}` : '';
     })();
 
-    if (!selectedClinicId) {
+    if (!effectiveClinicId) {
       if (cpfVal.length !== 11) return Alert.alert('Atenção', 'Informe um CPF válido com 11 dígitos.');
       if (!dobVal) return Alert.alert('Atenção', 'Informe a data no formato DD/MM/AAAA.');
       setCpfForClinic(cpfVal);
@@ -86,18 +95,42 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const data = await loginAsPatient(cpfVal, dobVal, selectedClinicId || undefined);
+      const data = await loginAsPatient(cpfVal, dobVal, effectiveClinicId || undefined, otp);
       if (data.choose_clinic) {
         setClinics(data.clinics);
         setLoading(false);
         return;
       }
+      if (data.need_otp) {
+        setClinics(null);
+        setPatientOtp({
+          challenge_id: data.challenge_id,
+          masked_phone: data.masked_phone,
+          channel: data.channel || 'whatsapp',
+          clinic_id: data.clinic_id || effectiveClinicId || null,
+          expires_in_seconds: data.expires_in_seconds || 600,
+        });
+        setOtpCode('');
+        setLoading(false);
+        return;
+      }
       setClinics(null);
+      setPatientOtp(null);
       await reloadAppConfig();
       router.replace('/(paciente)/inicio');
     } catch (err) {
       Alert.alert('Erro', err.message || 'Não foi possível verificar seus dados.');
     } finally { setLoading(false); }
+  };
+
+  const verifyPatientOtp = () => {
+    const code = otpCode.replace(/\D/g, '');
+    if (!patientOtp?.challenge_id) return;
+    if (code.length < 6) return Alert.alert('Atenção', 'Digite o código recebido no WhatsApp.');
+    handlePatientLogin(patientOtp.clinic_id, {
+      otp_code: code,
+      otp_challenge_id: patientOtp.challenge_id,
+    });
   };
 
   return (
@@ -140,14 +173,56 @@ export default function LoginScreen() {
             </>
           ) : (
             <>
-              <TextInput style={s.input} placeholder="CPF" placeholderTextColor={Colors.textMuted}
-                keyboardType="numeric" value={cpf} onChangeText={(t) => setCpf(formatCpf(t))} maxLength={14} />
-              <TextInput style={s.input} placeholder="Data de Nascimento (DD/MM/AAAA)" placeholderTextColor={Colors.textMuted}
-                keyboardType="numeric" value={dob} onChangeText={(t) => setDob(formatDob(t))} maxLength={10}
-                onSubmitEditing={() => handlePatientLogin()} />
-              <TouchableOpacity style={[s.btn, !consent && s.btnDisabled]} onPress={() => handlePatientLogin()} disabled={loading || !consent} activeOpacity={0.8}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Acessar Meus Dados</Text>}
-              </TouchableOpacity>
+              {patientOtp ? (
+                <>
+                  <View style={s.otpInfo}>
+                    <View style={s.otpIcon}>
+                      <Ionicons name="logo-whatsapp" size={22} color={Colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.otpTitle}>Código enviado</Text>
+                      <Text style={s.otpText}>
+                        Digite o código enviado para o WhatsApp {patientOtp.masked_phone || 'cadastrado na clínica'}.
+                      </Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[s.input, s.otpInput]}
+                    placeholder="000000"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="number-pad"
+                    textContentType="oneTimeCode"
+                    autoComplete="sms-otp"
+                    value={otpCode}
+                    onChangeText={(t) => setOtpCode(t.replace(/\D/g, '').slice(0, 8))}
+                    maxLength={8}
+                    autoFocus
+                    onSubmitEditing={verifyPatientOtp}
+                  />
+                  <TouchableOpacity style={[s.btn, (!consent || !otpCode.trim()) && s.btnDisabled]} onPress={verifyPatientOtp} disabled={loading || !consent || !otpCode.trim()} activeOpacity={0.8}>
+                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Confirmar Código</Text>}
+                  </TouchableOpacity>
+                  <View style={s.otpActions}>
+                    <TouchableOpacity onPress={() => handlePatientLogin(patientOtp.clinic_id)} disabled={loading} activeOpacity={0.7}>
+                      <Text style={s.textBtn}>Reenviar código</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={resetPatientOtp} disabled={loading} activeOpacity={0.7}>
+                      <Text style={s.textBtnMuted}>Trocar CPF/data</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <TextInput style={s.input} placeholder="CPF" placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric" value={cpf} onChangeText={(t) => setCpf(formatCpf(t))} maxLength={14} />
+                  <TextInput style={s.input} placeholder="Data de Nascimento (DD/MM/AAAA)" placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric" value={dob} onChangeText={(t) => setDob(formatDob(t))} maxLength={10}
+                    onSubmitEditing={() => handlePatientLogin()} />
+                  <TouchableOpacity style={[s.btn, !consent && s.btnDisabled]} onPress={() => handlePatientLogin()} disabled={loading || !consent} activeOpacity={0.8}>
+                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Acessar Meus Dados</Text>}
+                  </TouchableOpacity>
+                </>
+              )}
             </>
           )}
         </View>
@@ -218,6 +293,14 @@ const s = StyleSheet.create({
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.lg },
   btnDisabled: { opacity: 0.5 },
+  otpInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm },
+  otpIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.primarySofter, alignItems: 'center', justifyContent: 'center' },
+  otpTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  otpText: { fontSize: FontSize.sm, color: Colors.textMuted, lineHeight: 18 },
+  otpInput: { textAlign: 'center', fontSize: 22, fontWeight: '800', letterSpacing: 4 },
+  otpActions: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.sm, marginTop: Spacing.md },
+  textBtn: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
+  textBtnMuted: { color: Colors.textMuted, fontWeight: '600', fontSize: FontSize.sm },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', width: '100%', maxWidth: 360, marginTop: Spacing.md, gap: Spacing.sm },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkboxOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },

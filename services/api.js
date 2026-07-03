@@ -83,9 +83,11 @@ export async function login(email, password, totpCode) {
   return data;
 }
 
-export async function loginAsPatient(cpf, dob, clinic_id) {
+export async function loginAsPatient(cpf, dob, clinic_id, otp = {}) {
   const body = { cpf, dob };
   if (clinic_id) body.clinic_id = clinic_id;
+  if (otp.otp_code) body.otp_code = otp.otp_code;
+  if (otp.otp_challenge_id) body.otp_challenge_id = otp.otp_challenge_id;
   const res = await fetch(`${API_BASE}/api/auth/patient-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -94,6 +96,7 @@ export async function loginAsPatient(cpf, dob, clinic_id) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Erro no login');
   if (data.choose_clinic) return data;
+  if (data.need_otp) return data;
   await setAuth(data.token, data.user);
   return data;
 }
