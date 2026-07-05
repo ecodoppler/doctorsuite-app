@@ -56,7 +56,7 @@ export const DEFAULT_APP_CONFIG = {
       ],
       pregnancy: [
         { key: 'appointments', label: 'Consultas', icon: 'calendar-outline', target: '/(paciente)/agendamentos' },
-        { key: 'reports', label: 'Laudos', icon: 'document-text-outline', target: '/(paciente)/laudos' },
+        { key: 'reports', label: 'Laudos', icon: 'document-text-outline', target: '/(paciente)/exames' },
         { key: 'documents', label: 'Documentos', icon: 'shield-checkmark-outline', target: '/(paciente)/documentos' },
         { key: 'vaccines', label: 'Vacinas', icon: 'medkit-outline', target: '/(paciente)/vacinas' },
         { key: 'birthPlan', label: 'Plano', icon: 'clipboard-outline', target: '/(paciente)/plano' },

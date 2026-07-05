@@ -1,27 +1,123 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import VFHeader from '../../../components/pregnancy/VFHeader';
 import Card from '../../../components/pregnancy/Card';
 import SectionTitle from '../../../components/pregnancy/SectionTitle';
-import { api } from '../../../services/api';
+import { api, API_BASE } from '../../../services/api';
 import { Fonts, Status, Warm } from '../../../services/theme';
 
 const TRIM_KEYS = ['T1', 'T2', 'T3'];
+const EXAM_LABELS = {
+  us_obstetrica: 'US Obstétrica',
+  us_obs_1tri_abd: 'US Obstétrica 1º Tri Abdominal',
+  us_obs_1tri_tv: 'US Obstétrica 1º Tri Transvaginal',
+  us_morfo_1tri: 'US Morfológica 1º Tri',
+  us_morfo_2tri: 'US Morfológica 2º Tri',
+  doppler_obstetrico: 'Doppler Obstétrico',
+  perfil_biofisico: 'Perfil Biofísico Fetal',
+  cardiotocografia: 'Cardiotocografia',
+  ecocardiografia_fetal: 'Ecocardiografia Fetal',
+  us_pelvica_tv: 'US Pélvica TV',
+  us_pelvica_abd: 'US Pélvica Abdominal',
+  us_mamas: 'US Mamas',
+  us_tireoide: 'US Tireoide',
+  us_abdome: 'US Abdome',
+  us_rins_vias: 'US Rins e Vias Urinárias',
+  us_geral: 'Ultrassonografia',
+  mamografia: 'Mamografia',
+  densitometria: 'Densitometria Óssea',
+  raio_x: 'Raio-X',
+  tomografia: 'Tomografia Computadorizada',
+  ressonancia: 'Ressonância Magnética',
+  cintilografia: 'Cintilografia',
+};
+
+function examLabel(type, fallback) {
+  if (type && EXAM_LABELS[type]) return EXAM_LABELS[type];
+  if (fallback) return String(fallback);
+  return String(type || 'Laudo').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatDateBR(value) {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw;
+  const iso = raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso.split('-').reverse().join('/');
+  const dt = new Date(raw);
+  if (!Number.isNaN(dt.getTime())) {
+    return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  return raw;
+}
+
+function textKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function hasReportPdf(report) {
+  return report?.has_pdf === true || report?.has_pdf === 1 || report?.has_pdf === '1' || report?.has_pdf === 'true' || report?.has_pdf === 't';
+}
+
+function buildReportRefs(reports) {
+  return (reports || [])
+    .filter((report) => report?.id)
+    .map((report) => {
+      const type = String(report.exam_type || '');
+      return {
+        report,
+        type,
+        date: formatDateBR(report.exam_date || report.created_at),
+        kind: examLabel(type, report.template_name || report.report_type),
+      };
+    });
+}
+
+function attachReports(items, reportRefs, usedIds) {
+  return (items || []).map((item) => {
+    const itemDate = formatDateBR(item.date);
+    const itemType = String(item.exam_type || '');
+    const itemKind = textKey(item.kind);
+    const found = reportRefs.find((ref) => {
+      if (usedIds.has(ref.report.id)) return false;
+      if (itemDate && ref.date !== itemDate) return false;
+      if (itemType && ref.type === itemType) return true;
+      return itemKind && textKey(ref.kind) === itemKind;
+    });
+    if (found?.report?.id) usedIds.add(found.report.id);
+    return {
+      ...item,
+      report: found?.report || null,
+      date: item.date || found?.date || '',
+      kind: item.kind || found?.kind || 'Exame de imagem',
+    };
+  });
+}
 
 export default function ExamesScreen() {
   const router = useRouter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [busyReportId, setBusyReportId] = useState(null);
   const [err, setErr] = useState(null);
 
   const load = useCallback(async () => {
     try {
       setErr(null);
-      const d = await api('/api/my-pregnancy');
-      setData(d);
+      const [d, reports] = await Promise.all([
+        api('/api/my-pregnancy'),
+        api('/api/my-reports').catch(() => []),
+      ]);
+      setData({ ...(d || {}), reports: Array.isArray(reports) ? reports : [] });
     } catch (e) {
       setErr(e?.message || 'Falha ao carregar');
     } finally {
@@ -78,6 +174,77 @@ export default function ExamesScreen() {
 
   const onLabClick = (id, name) => {
     router.push({ pathname: '/(paciente)/exame-detalhe', params: { id, name } });
+  };
+
+  const openReportPdf = async (item) => {
+    const report = item?.report;
+    if (!report?.id || !hasReportPdf(report)) {
+      Alert.alert('Laudo', 'O PDF deste laudo ainda não está disponível.');
+      return;
+    }
+    setBusyReportId(report.id);
+    try {
+      const r = await api(`/api/my-reports/${report.id}/pdf-url`);
+      const raw = r?.url;
+      if (!raw) {
+        Alert.alert('Laudo', 'O PDF deste laudo ainda não está disponível.');
+        return;
+      }
+      const url = String(raw).startsWith('http') ? raw : `${API_BASE}${raw}`;
+      await WebBrowser.openBrowserAsync(url);
+    } catch (_) {
+      Alert.alert('Erro', 'Não foi possível abrir o PDF do laudo.');
+    } finally {
+      setBusyReportId(null);
+    }
+  };
+
+  const reportRefs = buildReportRefs(data?.reports);
+  const usedReportIds = new Set();
+  const usgRows = attachReports(usg, reportRefs, usedReportIds);
+  const ecoFetalRows = attachReports(ecoFetal, reportRefs, usedReportIds);
+
+  const renderImagingRow = (item, index, list) => {
+    const hasPdf = hasReportPdf(item.report);
+    const busy = busyReportId && String(busyReportId) === String(item.report?.id);
+    return (
+      <View key={item.report?.id || `${item.kind}-${item.date}-${index}`} style={[s.imgRow, index < list.length - 1 && s.imgRowBorder]}>
+        <View style={s.imgHeader}>
+          <Text style={s.imgKind}>{item.kind}</Text>
+          {item.ig ? <Text style={s.imgIG}>{item.ig}</Text> : null}
+        </View>
+        <View style={s.imgMetaRow}>
+          {item.date ? <Text style={s.imgDate}>{item.date}</Text> : null}
+          {item.report?.doctor_name ? (
+            <>
+              {item.date ? <Text style={s.imgMetaDot}>·</Text> : null}
+              <Text style={s.imgDoctor} numberOfLines={1}>Dr(a). {item.report.doctor_name}</Text>
+            </>
+          ) : null}
+        </View>
+        {hasPdf ? (
+          <Pressable
+            onPress={() => openReportPdf(item)}
+            disabled={!!busy}
+            style={({ pressed }) => [s.reportBtn, pressed && { opacity: 0.85 }, busy && { opacity: 0.7 }]}
+          >
+            {busy ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="document-text" size={16} color="#fff" />
+                <Text style={s.reportBtnText}>Abrir laudo</Text>
+              </>
+            )}
+          </Pressable>
+        ) : (
+          <View style={s.unavailableRow}>
+            <Ionicons name="time-outline" size={15} color={Status.slate} />
+            <Text style={s.unavailableText}>Laudo ainda não disponível</Text>
+          </View>
+        )}
+      </View>
+    );
   };
 
   return (
@@ -146,16 +313,7 @@ export default function ExamesScreen() {
           <View style={[s.section, { paddingTop: 4 }]}>
             <SectionTitle>Ultrassonografias</SectionTitle>
             <Card padding={0}>
-              {usg.map((u, i) => (
-                <View key={i} style={[s.imgRow, i < usg.length - 1 && s.imgRowBorder]}>
-                  <View style={s.imgHeader}>
-                    <Text style={s.imgKind}>{u.kind}</Text>
-                    {u.ig ? <Text style={s.imgIG}>{u.ig}</Text> : null}
-                  </View>
-                  {u.date ? <Text style={s.imgDate}>{u.date}</Text> : null}
-                  {u.finding ? <Text style={s.imgFinding}>{u.finding}</Text> : null}
-                </View>
-              ))}
+              {usgRows.map(renderImagingRow)}
             </Card>
           </View>
         )}
@@ -165,16 +323,7 @@ export default function ExamesScreen() {
           <View style={s.section}>
             <SectionTitle>Ecocardiografia fetal</SectionTitle>
             <Card padding={0}>
-              {ecoFetal.map((e, i) => (
-                <View key={i} style={[s.imgRow, i < ecoFetal.length - 1 && s.imgRowBorder]}>
-                  <View style={s.imgHeader}>
-                    <Text style={s.imgKind}>{e.kind}</Text>
-                    {e.ig ? <Text style={s.imgIG}>{e.ig}</Text> : null}
-                  </View>
-                  {e.date ? <Text style={s.imgDate}>{e.date}</Text> : null}
-                  {e.finding ? <Text style={s.imgFinding}>{e.finding}</Text> : null}
-                </View>
-              ))}
+              {ecoFetalRows.map(renderImagingRow)}
             </Card>
           </View>
         )}
@@ -225,6 +374,33 @@ const s = StyleSheet.create({
   imgHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   imgKind: { fontSize: 12, color: Status.ink, fontFamily: Fonts.uiBold, flex: 1, marginRight: 8 },
   imgIG: { fontSize: 10, color: Warm.accentDeep, fontFamily: Fonts.uiHeavy },
+  imgMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   imgDate: { fontSize: 10, color: Status.slate, fontFamily: Fonts.num },
-  imgFinding: { fontSize: 11, color: Status.ink, fontFamily: Fonts.ui, marginTop: 4, lineHeight: 16 },
+  imgMetaDot: { fontSize: 10, color: Status.slateLight, fontFamily: Fonts.uiBold },
+  imgDoctor: { fontSize: 10, color: Status.slate, fontFamily: Fonts.ui, flex: 1 },
+  reportBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: Warm.accentDeep,
+  },
+  reportBtnText: { color: '#fff', fontSize: 12, fontFamily: Fonts.uiBold },
+  unavailableRow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 10,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+  },
+  unavailableText: { fontSize: 11, color: Status.slate, fontFamily: Fonts.uiSemibold },
 });
