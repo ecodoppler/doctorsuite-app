@@ -6,22 +6,29 @@ import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
 
 const statusColors = {
-  Agendado: { bg: '#EEF2FF', text: '#4F46E5' },
-  Confirmado: { bg: '#ECFDF5', text: '#059669' },
-  Em_Atendimento: { bg: '#FEF3C7', text: '#D97706' },
-  Finalizado: { bg: '#F3F4F6', text: '#6B7280' },
-  Cancelado: { bg: '#FEE2E2', text: '#DC2626' },
-  Faltou: { bg: '#FEE2E2', text: '#DC2626' },
+  agendado: { bg: '#EEF2FF', text: '#4F46E5' },
+  confirmado: { bg: '#ECFDF5', text: '#059669' },
+  em_atendimento: { bg: '#FEF3C7', text: '#D97706' },
+  realizado: { bg: '#F3F4F6', text: '#6B7280' },
+  finalizado: { bg: '#F3F4F6', text: '#6B7280' },
+  cancelado: { bg: '#FEE2E2', text: '#DC2626' },
+  faltou: { bg: '#FEE2E2', text: '#DC2626' },
 };
 
 const statusLabels = {
-  Agendado: 'Agendado',
-  Confirmado: 'Confirmado',
-  Em_Atendimento: 'Em Atendimento',
-  Finalizado: 'Finalizado',
-  Cancelado: 'Cancelado',
-  Faltou: 'Faltou',
+  agendado: 'Agendado',
+  confirmado: 'Confirmado',
+  em_atendimento: 'Em Atendimento',
+  realizado: 'Realizado',
+  finalizado: 'Finalizado',
+  cancelado: 'Cancelado',
+  faltou: 'Faltou',
 };
+
+function normalizeStatus(status) {
+  const raw = String(status || 'agendado').trim().toLowerCase();
+  return raw.replace(/\s+/g, '_').replace(/-/g, '_');
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -52,7 +59,7 @@ export default function AgendamentosScreen() {
     try {
       await api(`/api/appointments/${id}/status`, {
         method: 'PUT',
-        body: JSON.stringify({ status: 'Confirmado' }),
+        body: JSON.stringify({ status: 'confirmado' }),
       });
       Alert.alert('✅ Confirmado', 'Sua consulta foi confirmada!');
       load();
@@ -64,18 +71,22 @@ export default function AgendamentosScreen() {
   const today = new Date().toISOString().slice(0, 10);
   const futureAppts = appointments.filter(a => {
     const d = (a.apt_date || a.appointment_date || a.date || '').slice(0, 10);
-    return d >= today && a.status !== 'Cancelado' && a.status !== 'Faltou';
+    const status = normalizeStatus(a.status);
+    return d >= today && status !== 'cancelado' && status !== 'faltou';
   });
   const pastAppts = appointments.filter(a => {
     const d = (a.apt_date || a.appointment_date || a.date || '').slice(0, 10);
-    return d < today || a.status === 'Cancelado' || a.status === 'Faltou';
+    const status = normalizeStatus(a.status);
+    return d < today || status === 'cancelado' || status === 'faltou';
   });
 
   const renderItem = ({ item }) => {
     const dateStr = item.apt_date || item.appointment_date || item.date || '';
     const isFuture = dateStr.slice(0, 10) >= today;
-    const sc = statusColors[item.status] || statusColors.Agendado;
-    const canConfirm = isFuture && (item.status === 'Agendado');
+    const status = normalizeStatus(item.status);
+    const sc = statusColors[status] || statusColors.agendado;
+    const canConfirm = isFuture && status === 'agendado';
+    const startTime = item.start_time || item.appointment_time || '';
 
     return (
       <View style={[s.card, !isFuture && s.pastCard]}>
@@ -86,7 +97,7 @@ export default function AgendamentosScreen() {
           </View>
           <View style={[s.badge, { backgroundColor: sc.bg }]}>
             <Text style={[s.badgeText, { color: sc.text }]}>
-              {statusLabels[item.status] || item.status}
+              {statusLabels[status] || item.status}
             </Text>
           </View>
         </View>
@@ -95,7 +106,7 @@ export default function AgendamentosScreen() {
           <View style={s.infoRow}>
             <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
             <Text style={s.infoText}>
-              {item.start_time?.slice(0, 5) || ''}{item.end_time ? ` — ${item.end_time.slice(0, 5)}` : ''}
+              {startTime?.slice(0, 5) || ''}{item.end_time ? ` — ${item.end_time.slice(0, 5)}` : ''}
             </Text>
           </View>
           <View style={s.infoRow}>

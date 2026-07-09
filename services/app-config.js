@@ -129,6 +129,47 @@ export function deepMerge(base, override) {
   return out;
 }
 
+function normalizeShortcutGroup(defaultGroup, configuredGroup) {
+  const defaults = Array.isArray(defaultGroup) ? defaultGroup : [];
+  const configured = Array.isArray(configuredGroup) ? configuredGroup : null;
+  if (!configured) return defaults;
+
+  const defaultsByKey = new Map(defaults.map((item) => [item.key, item]));
+  const seen = new Set();
+  const merged = [];
+
+  for (const item of configured) {
+    if (!item?.key) continue;
+    seen.add(item.key);
+    merged.push({
+      ...(defaultsByKey.get(item.key) || {}),
+      ...item,
+    });
+  }
+
+  for (const item of defaults) {
+    if (!seen.has(item.key)) merged.push(item);
+  }
+
+  return merged;
+}
+
+function normalizeShortcuts(config) {
+  const defaultShortcuts = DEFAULT_APP_CONFIG.patient.shortcuts;
+  const shortcuts = config.patient?.shortcuts || {};
+  return {
+    ...config,
+    patient: {
+      ...config.patient,
+      shortcuts: {
+        ...shortcuts,
+        noPregnancy: normalizeShortcutGroup(defaultShortcuts.noPregnancy, shortcuts.noPregnancy),
+        pregnancy: normalizeShortcutGroup(defaultShortcuts.pregnancy, shortcuts.pregnancy),
+      },
+    },
+  };
+}
+
 function normalizeConfig(raw, user) {
   const payload = raw?.config || raw || {};
   const tenantFromUser = {
@@ -137,7 +178,7 @@ function normalizeConfig(raw, user) {
       clinicName: user?.clinic_name || user?.clinicName || null,
     },
   };
-  return deepMerge(deepMerge(DEFAULT_APP_CONFIG, tenantFromUser), payload);
+  return normalizeShortcuts(deepMerge(deepMerge(DEFAULT_APP_CONFIG, tenantFromUser), payload));
 }
 
 async function fetchMobileConfig(user) {

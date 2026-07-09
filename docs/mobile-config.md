@@ -94,3 +94,6 @@ O payload pode vir direto ou dentro de `{ "config": ... }`.
 - `examsMode: "general"` libera a aba de exames para fluxos nao gestacionais, mas exige uma tela/endpoint generico.
 - `clinicalModules.pregnancy.enabled: "auto"` mostra o modulo quando o backend retorna gestacao ativa.
 - Contatos e sinais de emergencia devem vir do tenant/especialidade; a tela nao deve depender de mocks.
+- Atalhos (`patient.shortcuts`) devem ser configurados preferencialmente por `key`. O app completa `icon` e `target`
+  com os defaults locais quando esses campos faltarem, e reinsere atalhos padrao ausentes se a feature estiver ativa.
+  Isso evita quebrar rotas como Consultas/Mensagens em novas clinicas.
