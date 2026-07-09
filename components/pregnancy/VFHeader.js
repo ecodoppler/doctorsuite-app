@@ -15,6 +15,10 @@ export default function VFHeader({ patient, pregnancy }) {
   const canBack = router.canGoBack();
   const igTotal = pregnancy.igWeeks * 7 + pregnancy.igDays;
   const pct = (igTotal / 280) * 100;
+  const subtitleParts = [
+    patient.age != null ? `${patient.age} anos` : null,
+    patient.blood || null,
+  ].filter(Boolean);
 
   return (
     <LinearGradient
@@ -38,7 +42,9 @@ export default function VFHeader({ patient, pregnancy }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.name} numberOfLines={1}>{patient.name}</Text>
-            <Text style={s.subtle}>{patient.age} anos · {patient.blood}</Text>
+            {subtitleParts.length > 0 ? (
+              <Text style={s.subtle}>{subtitleParts.join(' · ')}</Text>
+            ) : null}
           </View>
         </View>
         <RiskBadge level={patient.risk} compact />
