@@ -38,6 +38,8 @@ O payload pode vir direto ou dentro de `{ "config": ... }`.
       "chat": true,
       "pregnancy": true,
       "vaccines": true,
+      "mrpa": true,
+      "dextros": true,
       "birthPlan": true,
       "alerts": true
     },
@@ -90,6 +92,8 @@ O payload pode vir direto ou dentro de `{ "config": ... }`.
 ## Regras
 
 - `features` controla se um modulo aparece para o paciente.
+- `features.mrpa` e `features.dextros` liberam os atalhos globais; a entrada de dados ainda depende
+  de habilitacao individual pelo medico nos endpoints `/api/my-pregnancy/mrpa` e `/api/my-pregnancy/dextros`.
 - `examsMode: "pregnancy"` mostra a aba de exames apenas quando ha gestacao ativa.
 - `examsMode: "general"` libera a aba de exames para fluxos nao gestacionais, mas exige uma tela/endpoint generico.
 - `clinicalModules.pregnancy.enabled: "auto"` mostra o modulo quando o backend retorna gestacao ativa.
