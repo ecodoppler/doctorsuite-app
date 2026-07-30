@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 export const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
   Constants.expoConfig?.extra?.apiBaseUrl ||
   Constants.manifest?.extra?.apiBaseUrl ||
   'https://doctorsuite.app';

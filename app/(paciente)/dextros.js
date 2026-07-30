@@ -9,12 +9,15 @@ import Card from '../../components/pregnancy/Card';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
 import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 import { api } from '../../services/api';
+import {
+  DELETE_REASONS,
+  alertBadge,
+  localDateParts,
+  localDateTimeToIso,
+  requestId,
+  showPatientAlert,
+} from '../../services/obstetric-monitoring';
 import { Fonts, Status, Warm } from '../../services/theme';
-
-function todayDate() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function fmtDate(raw) {
   if (!raw) return '—';
@@ -29,12 +32,26 @@ function fmtDate(raw) {
   }
 }
 
-const emptyDraft = (slot) => ({
-  date: todayDate(),
-  slot_key: slot || 'jejum',
-  value_mgdl: '',
-  notes: '',
-});
+function fmtTime(raw) {
+  if (!raw) return '—';
+  try {
+    return new Date(raw).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return String(raw).slice(11, 16);
+  }
+}
+
+const draftFor = (slot, item = null) => {
+  const parts = localDateParts(item?.measured_at || new Date());
+  return {
+    date: parts.date,
+    time: parts.time,
+    slot_key: item?.slot_key || slot || 'jejum',
+    value_mgdl: item?.value_mgdl == null ? '' : String(item.value_mgdl),
+    notes: item?.notes || '',
+    client_request_id: item ? null : requestId('dextro'),
+  };
+};
 
 export default function DextrosScreen() {
   const [data, setData] = useState(null);
@@ -43,8 +60,9 @@ export default function DextrosScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState(emptyDraft('jejum'));
+  const [draft, setDraft] = useState(() => draftFor('jejum'));
 
   const load = useCallback(async () => {
     try {
@@ -72,7 +90,7 @@ export default function DextrosScreen() {
   const rows = dextro?.measurements || [];
   const slotByKey = useMemo(() => Object.fromEntries(slots.map((s) => [s.key, s.label])), [slots]);
   const openRows = rows.filter((r) => !r.imported_record_id);
-  const patternLabel = pattern === 'expanded' ? '7 pontos' : '4 pontos';
+  const patternLabel = pattern.startsWith('expanded') ? '7 pontos' : '4 pontos';
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -86,30 +104,37 @@ export default function DextrosScreen() {
     return Array.from(map.entries());
   }, [rows]);
 
-  const openForm = () => {
-    setDraft(emptyDraft(slots[0]?.key || 'jejum'));
+  const openForm = (item = null) => {
+    setEditingItem(item);
+    setDraft(draftFor(slots[0]?.key || 'jejum', item));
     setEditing(true);
   };
 
   const save = async () => {
     const value = parseInt(draft.value_mgdl, 10);
-    if (!draft.date) return Alert.alert('Preencha a data');
+    const measuredAt = localDateTimeToIso(draft.date, draft.time);
+    if (!measuredAt) return Alert.alert('Data ou hora inválida', 'Use os formatos AAAA-MM-DD e HH:MM.');
     if (!draft.slot_key) return Alert.alert('Selecione o horário');
     if (!Number.isFinite(value) || value < 20 || value > 600) return Alert.alert('Valor inválido');
 
     setSaving(true);
     try {
-      await api('/api/my-pregnancy/dextros/readings', {
-        method: 'POST',
+      const response = await api(editingItem
+        ? `/api/my-pregnancy/dextros/readings/${editingItem.id}`
+        : '/api/my-pregnancy/dextros/readings', {
+        method: editingItem ? 'PUT' : 'POST',
         body: JSON.stringify({
-          measured_at: new Date(`${draft.date}T12:00:00`).toISOString(),
+          measured_at: measuredAt,
           slot_key: draft.slot_key,
           value_mgdl: value,
           notes: draft.notes.trim() || null,
+          client_request_id: draft.client_request_id,
         }),
       });
       setEditing(false);
+      setEditingItem(null);
       await load();
+      showPatientAlert(Alert, response?.patient_alert);
     } catch (e) {
       Alert.alert('Erro ao salvar', e?.message || 'Tente novamente.');
     } finally {
@@ -117,18 +142,30 @@ export default function DextrosScreen() {
     }
   };
 
-  const remove = async (item) => {
-    Alert.alert('Remover dextro?', `${slotByKey[item.slot_key] || item.slot_key}: ${item.value_mgdl} mg/dL`, [
+  const removeWithReason = async (item, reason) => {
+    try {
+      await api(`/api/my-pregnancy/dextros/readings/${item.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason }),
+      });
+      await load();
+    } catch (e) {
+      Alert.alert('Erro', e?.message || 'Não foi possível excluir.');
+    }
+  };
+
+  const remove = (item) => {
+    Alert.alert('Motivo da exclusão', `${slotByKey[item.slot_key] || item.slot_key}: ${item.value_mgdl} mg/dL`, [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Remover', style: 'destructive', onPress: async () => {
-          try {
-            await api(`/api/my-pregnancy/dextros/readings/${item.id}`, { method: 'DELETE' });
-            await load();
-          } catch (e) {
-            Alert.alert('Erro', e?.message || 'Não foi possível remover.');
-          }
-        },
+        text: DELETE_REASONS.typing_error,
+        style: 'destructive',
+        onPress: () => removeWithReason(item, 'typing_error'),
+      },
+      {
+        text: DELETE_REASONS.time_error,
+        style: 'destructive',
+        onPress: () => removeWithReason(item, 'time_error'),
       },
     ]);
   };
@@ -198,21 +235,35 @@ export default function DextrosScreen() {
                 <Text style={s.dayTitle}>{fmtDate(dateKey)}</Text>
                 <Text style={s.dayCount}>{items.length} medida(s)</Text>
               </View>
-              {items.map((r, i) => (
-                <Pressable
-                  key={r.id || i}
-                  onLongPress={() => !r.imported_record_id && remove(r)}
-                  style={[s.row, i < items.length - 1 && s.rowBorder]}
-                >
+              {items.map((r, i) => {
+                const badge = alertBadge(r.clinical_status);
+                return (
+                <View key={r.id || i} style={[s.row, i < items.length - 1 && s.rowBorder]}>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={s.rowSlot}>{slotByKey[r.slot_key] || r.slot_key}</Text>
+                    <Text style={s.rowTime}>{fmtTime(r.measured_at)}</Text>
                     {r.notes ? <Text style={s.rowNote}>{r.notes}</Text> : null}
+                    {badge ? (
+                      <View style={[s.alertBadge, badge.tone === 'urgent' ? s.alertBadgeUrgent : s.alertBadgeAttention]}>
+                        <Text style={[s.alertBadgeText, badge.tone === 'urgent' ? s.alertBadgeTextUrgent : s.alertBadgeTextAttention]}>{badge.label}</Text>
+                      </View>
+                    ) : null}
                   </View>
                   <Text style={s.value}>{r.value_mgdl}</Text>
                   <Text style={s.unit}>mg/dL</Text>
                   {r.imported_record_id ? <Text style={s.imported}>Importado</Text> : null}
-                </Pressable>
-              ))}
+                  {r.can_edit ? (
+                    <Pressable accessibilityLabel="Editar dextro" onPress={() => openForm(r)} hitSlop={8} style={s.iconBtn}>
+                      <Ionicons name="pencil-outline" size={17} color={Warm.accentDeep} />
+                    </Pressable>
+                  ) : null}
+                  {r.can_delete ? (
+                    <Pressable accessibilityLabel="Excluir dextro" onPress={() => remove(r)} hitSlop={8} style={s.iconBtn}>
+                      <Ionicons name="trash-outline" size={17} color="#b42318" />
+                    </Pressable>
+                  ) : null}
+                </View>
+              );})}
             </Card>
           )) : (
             <Card padding={18}>
@@ -224,17 +275,18 @@ export default function DextrosScreen() {
         <ClinicalDisclaimer text="Registros domiciliares são acompanhamentos informativos. Em caso de sintomas ou valores preocupantes, procure atendimento." />
       </ScrollView>
 
-      <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
+      <Modal visible={editing} transparent animationType="slide" onRequestClose={() => { setEditing(false); setEditingItem(null); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.modalBackdrop}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Novo dextro</Text>
-              <Pressable onPress={() => setEditing(false)} hitSlop={10}>
+              <Text style={s.modalTitle}>{editingItem ? 'Editar dextro' : 'Novo dextro'}</Text>
+              <Pressable onPress={() => { setEditing(false); setEditingItem(null); }} hitSlop={10}>
                 <Ionicons name="close" size={22} color={Status.slate} />
               </Pressable>
             </View>
             <Field label="Data" value={draft.date} onChangeText={(v) => setDraft((d) => ({ ...d, date: v }))} placeholder="AAAA-MM-DD" />
-            <Text style={s.fieldLabel}>Horário</Text>
+            <Field label="Hora da medição" value={draft.time} onChangeText={(v) => setDraft((d) => ({ ...d, time: v }))} placeholder="HH:MM" />
+            <Text style={s.fieldLabel}>Momento da medição</Text>
             <View style={s.slotPicker}>
               {slots.map((slot) => {
                 const active = draft.slot_key === slot.key;
@@ -252,7 +304,7 @@ export default function DextrosScreen() {
             <Field label="Valor" value={draft.value_mgdl} onChangeText={(v) => setDraft((d) => ({ ...d, value_mgdl: v }))} keyboardType="number-pad" placeholder="mg/dL" />
             <Field label="Observação" value={draft.notes} onChangeText={(v) => setDraft((d) => ({ ...d, notes: v }))} multiline optional />
             <Pressable onPress={save} disabled={saving} style={({ pressed }) => [s.saveBtn, pressed && { opacity: 0.9 }, saving && { opacity: 0.6 }]}>
-              <Text style={s.saveText}>{saving ? 'Salvando…' : 'Salvar dextro'}</Text>
+              <Text style={s.saveText}>{saving ? 'Salvando…' : editingItem ? 'Salvar alterações' : 'Salvar dextro'}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -296,10 +348,18 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Status.borderSoft },
   rowSlot: { fontSize: 13, color: Status.ink, fontFamily: Fonts.uiSemibold },
+  rowTime: { marginTop: 2, fontSize: 11, color: Status.slate, fontFamily: Fonts.uiSemibold },
   rowNote: { marginTop: 2, fontSize: 11, color: Status.slate, fontFamily: Fonts.ui },
   value: { minWidth: 42, textAlign: 'right', fontSize: 20, color: Status.ink, fontFamily: Fonts.numHeavy },
   unit: { fontSize: 11, color: Status.slate, fontFamily: Fonts.uiBold },
   imported: { fontSize: 10, color: Status.slate, fontFamily: Fonts.uiBold, textTransform: 'uppercase' },
+  iconBtn: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
+  alertBadge: { alignSelf: 'flex-start', marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  alertBadgeAttention: { backgroundColor: '#fff4cc' },
+  alertBadgeUrgent: { backgroundColor: '#fee4e2' },
+  alertBadgeText: { fontSize: 10, fontFamily: Fonts.uiBold, textTransform: 'uppercase' },
+  alertBadgeTextAttention: { color: '#8a5b00' },
+  alertBadgeTextUrgent: { color: '#b42318' },
   empty: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, textAlign: 'center' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.35)' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, gap: 12 },

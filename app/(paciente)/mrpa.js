@@ -9,17 +9,15 @@ import Card from '../../components/pregnancy/Card';
 import SectionTitle from '../../components/pregnancy/SectionTitle';
 import ClinicalDisclaimer from '../../components/ClinicalDisclaimer';
 import { api } from '../../services/api';
+import {
+  DELETE_REASONS,
+  alertBadge,
+  localDateParts,
+  localDateTimeToIso,
+  requestId,
+  showPatientAlert,
+} from '../../services/obstetric-monitoring';
 import { Fonts, Status, Warm } from '../../services/theme';
-
-function todayDate() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function nowTime() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 function fmtDateTime(raw) {
   if (!raw) return '—';
@@ -32,14 +30,18 @@ function fmtDateTime(raw) {
   }
 }
 
-const emptyDraft = () => ({
-  date: todayDate(),
-  time: nowTime(),
-  systolic: '',
-  diastolic: '',
-  pulse: '',
-  notes: '',
-});
+const draftFor = (item = null) => {
+  const parts = localDateParts(item?.measured_at || new Date());
+  return {
+    date: parts.date,
+    time: parts.time,
+    systolic: item?.systolic == null ? '' : String(item.systolic),
+    diastolic: item?.diastolic == null ? '' : String(item.diastolic),
+    pulse: item?.pulse == null ? '' : String(item.pulse),
+    notes: item?.notes || '',
+    client_request_id: item ? null : requestId('mrpa'),
+  };
+};
 
 export default function MrpaScreen() {
   const [data, setData] = useState(null);
@@ -48,8 +50,9 @@ export default function MrpaScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState(emptyDraft);
+  const [draft, setDraft] = useState(() => draftFor());
 
   const load = useCallback(async () => {
     try {
@@ -85,8 +88,9 @@ export default function MrpaScreen() {
     return `${sis}/${dia}`;
   }, [rows]);
 
-  const openForm = () => {
-    setDraft(emptyDraft());
+  const openForm = (item = null) => {
+    setEditingItem(item);
+    setDraft(draftFor(item));
     setEditing(true);
   };
 
@@ -94,25 +98,32 @@ export default function MrpaScreen() {
     const systolic = parseInt(draft.systolic, 10);
     const diastolic = parseInt(draft.diastolic, 10);
     const pulse = draft.pulse ? parseInt(draft.pulse, 10) : null;
-    if (!draft.date || !draft.time) return Alert.alert('Preencha data e hora');
+    const measuredAt = localDateTimeToIso(draft.date, draft.time);
+    if (!measuredAt) return Alert.alert('Data ou hora inválida', 'Use os formatos AAAA-MM-DD e HH:MM.');
     if (!Number.isFinite(systolic) || systolic < 60 || systolic > 260) return Alert.alert('PA sistólica inválida');
     if (!Number.isFinite(diastolic) || diastolic < 30 || diastolic > 160) return Alert.alert('PA diastólica inválida');
+    if (systolic <= diastolic) return Alert.alert('Medida inválida', 'A pressão sistólica deve ser maior que a diastólica.');
     if (pulse != null && (!Number.isFinite(pulse) || pulse < 30 || pulse > 220)) return Alert.alert('Pulso inválido');
 
     setSaving(true);
     try {
-      await api('/api/my-pregnancy/mrpa/readings', {
-        method: 'POST',
+      const response = await api(editingItem
+        ? `/api/my-pregnancy/mrpa/readings/${editingItem.id}`
+        : '/api/my-pregnancy/mrpa/readings', {
+        method: editingItem ? 'PUT' : 'POST',
         body: JSON.stringify({
-          measured_at: new Date(`${draft.date}T${draft.time}:00`).toISOString(),
+          measured_at: measuredAt,
           systolic,
           diastolic,
           pulse,
           notes: draft.notes.trim() || null,
+          client_request_id: draft.client_request_id,
         }),
       });
       setEditing(false);
+      setEditingItem(null);
       await load();
+      showPatientAlert(Alert, response?.patient_alert);
     } catch (e) {
       Alert.alert('Erro ao salvar', e?.message || 'Tente novamente.');
     } finally {
@@ -120,18 +131,30 @@ export default function MrpaScreen() {
     }
   };
 
-  const remove = async (item) => {
-    Alert.alert('Remover medida?', `${item.systolic}/${item.diastolic} mmHg`, [
+  const removeWithReason = async (item, reason) => {
+    try {
+      await api(`/api/my-pregnancy/mrpa/readings/${item.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason }),
+      });
+      await load();
+    } catch (e) {
+      Alert.alert('Erro', e?.message || 'Não foi possível excluir.');
+    }
+  };
+
+  const remove = (item) => {
+    Alert.alert('Motivo da exclusão', `${item.systolic}/${item.diastolic} mmHg`, [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Remover', style: 'destructive', onPress: async () => {
-          try {
-            await api(`/api/my-pregnancy/mrpa/readings/${item.id}`, { method: 'DELETE' });
-            await load();
-          } catch (e) {
-            Alert.alert('Erro', e?.message || 'Não foi possível remover.');
-          }
-        },
+        text: DELETE_REASONS.typing_error,
+        style: 'destructive',
+        onPress: () => removeWithReason(item, 'typing_error'),
+      },
+      {
+        text: DELETE_REASONS.time_error,
+        style: 'destructive',
+        onPress: () => removeWithReason(item, 'time_error'),
       },
     ]);
   };
@@ -206,23 +229,36 @@ export default function MrpaScreen() {
           <SectionTitle>Medidas</SectionTitle>
           {rows.length ? (
             <Card padding={0}>
-              {rows.map((r, i) => (
-                <Pressable
-                  key={r.id || i}
-                  onLongPress={() => !r.imported_record_id && remove(r)}
-                  style={[s.row, i < rows.length - 1 && s.rowBorder]}
-                >
+              {rows.map((r, i) => {
+                const badge = alertBadge(r.clinical_status);
+                return (
+                <View key={r.id || i} style={[s.row, i < rows.length - 1 && s.rowBorder]}>
                   <View style={s.paPill}>
                     <Text style={s.paPillText}>{r.systolic}/{r.diastolic}</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={s.rowDate}>{fmtDateTime(r.measured_at)}</Text>
                     {r.notes ? <Text style={s.rowNote}>{r.notes}</Text> : null}
+                    {badge ? (
+                      <View style={[s.alertBadge, badge.tone === 'urgent' ? s.alertBadgeUrgent : s.alertBadgeAttention]}>
+                        <Text style={[s.alertBadgeText, badge.tone === 'urgent' ? s.alertBadgeTextUrgent : s.alertBadgeTextAttention]}>{badge.label}</Text>
+                      </View>
+                    ) : null}
                   </View>
                   {r.pulse ? <Text style={s.rowPulse}>FC {r.pulse}</Text> : null}
                   {r.imported_record_id ? <Text style={s.imported}>Importada</Text> : null}
-                </Pressable>
-              ))}
+                  {r.can_edit ? (
+                    <Pressable accessibilityLabel="Editar medida" onPress={() => openForm(r)} hitSlop={8} style={s.iconBtn}>
+                      <Ionicons name="pencil-outline" size={17} color={Warm.accentDeep} />
+                    </Pressable>
+                  ) : null}
+                  {r.can_delete ? (
+                    <Pressable accessibilityLabel="Excluir medida" onPress={() => remove(r)} hitSlop={8} style={s.iconBtn}>
+                      <Ionicons name="trash-outline" size={17} color="#b42318" />
+                    </Pressable>
+                  ) : null}
+                </View>
+              );})}
             </Card>
           ) : (
             <Card padding={18}>
@@ -234,12 +270,12 @@ export default function MrpaScreen() {
         <ClinicalDisclaimer text="Registros domiciliares são acompanhamentos informativos. Em caso de sintomas ou valores preocupantes, procure atendimento." />
       </ScrollView>
 
-      <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
+      <Modal visible={editing} transparent animationType="slide" onRequestClose={() => { setEditing(false); setEditingItem(null); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.modalBackdrop}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Nova medida</Text>
-              <Pressable onPress={() => setEditing(false)} hitSlop={10}>
+              <Text style={s.modalTitle}>{editingItem ? 'Editar medida' : 'Nova medida'}</Text>
+              <Pressable onPress={() => { setEditing(false); setEditingItem(null); }} hitSlop={10}>
                 <Ionicons name="close" size={22} color={Status.slate} />
               </Pressable>
             </View>
@@ -252,7 +288,7 @@ export default function MrpaScreen() {
             </View>
             <Field label="Observação" value={draft.notes} onChangeText={(v) => setDraft((d) => ({ ...d, notes: v }))} multiline optional />
             <Pressable onPress={save} disabled={saving} style={({ pressed }) => [s.saveBtn, pressed && { opacity: 0.9 }, saving && { opacity: 0.6 }]}>
-              <Text style={s.saveText}>{saving ? 'Salvando…' : 'Salvar medida'}</Text>
+              <Text style={s.saveText}>{saving ? 'Salvando…' : editingItem ? 'Salvar alterações' : 'Salvar medida'}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -300,6 +336,13 @@ const s = StyleSheet.create({
   rowNote: { marginTop: 2, fontSize: 11, color: Status.slate, fontFamily: Fonts.ui },
   rowPulse: { fontSize: 11, color: Status.slate, fontFamily: Fonts.uiBold },
   imported: { fontSize: 10, color: Status.slate, fontFamily: Fonts.uiBold, textTransform: 'uppercase' },
+  iconBtn: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
+  alertBadge: { alignSelf: 'flex-start', marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  alertBadgeAttention: { backgroundColor: '#fff4cc' },
+  alertBadgeUrgent: { backgroundColor: '#fee4e2' },
+  alertBadgeText: { fontSize: 10, fontFamily: Fonts.uiBold, textTransform: 'uppercase' },
+  alertBadgeTextAttention: { color: '#8a5b00' },
+  alertBadgeTextUrgent: { color: '#b42318' },
   empty: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, textAlign: 'center' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.35)' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, gap: 12 },
