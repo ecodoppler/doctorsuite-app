@@ -11,6 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE, api, getUser } from '../../services/api';
 import { Colors, Spacing, FontSize, Radius } from '../../services/theme';
 import ScreenHeader from '../../components/ScreenHeader';
+import {
+  buildProntuarioTimeline,
+  countFinalizedTimelineReports,
+  filterProntuarioTimeline,
+} from '../../services/prontuario-timeline';
 
 import { getPendingPatient, onPendingPatient } from '../../services/navigation';
 
@@ -19,27 +24,6 @@ function openWhatsApp(phone) {
   const digits = phone.replace(/\D/g, '');
   const num = digits.startsWith('55') ? digits : '55' + digits;
   Linking.openURL(`https://wa.me/${num}`);
-}
-
-// Rótulos amigáveis dos tipos de exame (espelho do web EXAM_TYPES). Fallback: "prettify" da chave crua.
-const EXAM_TYPES = {
-  us_pelvica_tv: 'US Pélvica via Transvaginal',
-  us_pelvica_abd: 'US Pélvica via Abdominal',
-  us_mamas: 'US Mamas e Prolongamentos Axilares',
-  us_obs_1tri_abd: 'US Obstétrica 1º Tri Abdominal',
-  us_obs_1tri_tv: 'US Obstétrica 1º Tri Transvaginal',
-  us_obstetrica: 'US Obstétrica',
-  us_morfo_1tri: 'US Morfológica 1º Tri com Doppler',
-  us_morfo_2tri: 'US Morfológica 2º Tri com Doppler',
-  doppler_obstetrico: 'Doppler Obstétrico',
-  ecocardiografia_fetal: 'Ecocardiografia Fetal',
-  perfil_biofisico: 'Perfil Biofísico Fetal',
-  colposcopia: 'Colposcopia',
-};
-function examLabel(type) {
-  if (!type) return 'Laudo';
-  if (EXAM_TYPES[type]) return EXAM_TYPES[type];
-  return String(type).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // Abre o PDF do laudo (mesma rota pública /p/<token> do web). pdf_tokens vem do backend
@@ -67,14 +51,6 @@ async function openLaudoPdf(item) {
     : 'Nenhum PDF disponível para este laudo.');
 }
 
-// v0.0.643: rótulos dos documentos clínicos (linguagem natural, sem chave técnica).
-const DOC_TYPE_LABELS = {
-  atestado: 'Atestado Médico',
-  declaracao: 'Declaração de Comparecimento',
-  encaminhamento: 'Encaminhamento Médico',
-  exames: 'Solicitação de Exames',
-};
-
 // Abre o PDF de um documento clínico — endpoint autenticado devolve URL R2 assinada; WebBrowser abre.
 async function openClinicDoc(doc) {
   if (!doc?.has_pdf) {
@@ -86,90 +62,6 @@ async function openClinicDoc(doc) {
     if (r?.url) { await WebBrowser.openBrowserAsync(r.url); return; }
   } catch (e) {}
   Alert.alert('Documento', 'Não foi possível abrir o PDF do documento.');
-}
-
-// Build unified timeline from API data
-function buildTimeline(data) {
-  const items = [];
-  const records = data.records || [];
-  const appointments = data.appointments || [];
-  const reports = data.reports || [];
-
-  // Medical records
-  for (const mr of records) {
-    let content = {};
-    try { content = typeof mr.content_json === 'string' ? JSON.parse(mr.content_json) : mr.content_json || {}; } catch {}
-    const recType = content.record_type || 'consulta';
-    items.push({
-      source: 'record', type: recType === 'procedimento' ? 'procedimento' : 'consulta',
-      date: mr.created_at?.slice(0, 10), time: mr.created_at?.slice(11, 16),
-      title: recType === 'consulta_obstetrica' ? 'Consulta Obstétrica'
-        : recType === 'consulta_ginecologica' ? 'Consulta Ginecológica'
-        : recType === 'encerramento_gestacao' ? 'Encerramento de Gestação'
-        : recType === 'importado' ? 'Registro Importado'
-        : recType === 'chat_anexo' ? 'Mensagens do Chat'
-        : recType === 'procedimento' ? 'Procedimento' : 'Consulta Médica',
-      doctor: mr.doctor_name, id: mr.id, color: '#4f46e5', content, status: 'registrado',
-    });
-  }
-
-  // Appointments (skip if linked to a record). Se o agendamento tem laudo vinculado,
-  // carrega os pdf_tokens dele pra dar acesso ao PDF (senão o laudo ficaria inacessível).
-  // Espelha a web (_buildTimeline): só ENTRA na timeline o appointment que é EXAME com laudo
-  // finalizado. Consultas vêm pelos records; agendamentos futuros / sem laudo NÃO aparecem aqui.
-  const FINALIZED_APPT = ['concluido', 'finalizado', 'assinado', 'registrado'];
-  for (const a of appointments) {
-    const hasRecord = records.find(r => r.appointment_id === a.id);
-    if (hasRecord) continue;
-    const cat = a.type_category || a.category;
-    if (cat !== 'exame' || !a.report_id || !FINALIZED_APPT.includes(a.status)) continue;
-    const linkedReport = reports.find(r => r.id === a.report_id) || null;
-    items.push({
-      source: 'appointment', type: a.type_category || a.category || 'consulta',
-      date: a.appointment_date, time: a.appointment_time?.slice(0, 5),
-      title: a.type_name || (linkedReport ? examLabel(linkedReport.exam_type) : 'Consulta'),
-      doctor: a.doctor_name,
-      insurance: a.insurance_name, status: a.status, id: a.id,
-      pdfTokens: linkedReport?.pdf_tokens || '', hasLaudo: !!linkedReport, reportId: linkedReport?.id || null,
-      color: a.category === 'exame' ? '#10b981' : '#3b82f6',
-    });
-  }
-
-  // Reports (standalone) — nome amigável + pdf_tokens pra abrir o PDF.
-  for (const r of reports) {
-    const linked = appointments.find(a => a.report_id === r.id);
-    if (!linked) {
-      items.push({
-        source: 'report', type: 'exame',
-        date: r.created_at?.slice(0, 10), time: r.created_at?.slice(11, 16),
-        title: examLabel(r.exam_type), status: r.status, id: r.id,
-        pdfTokens: r.pdf_tokens || '', examType: r.exam_type,
-        color: '#0ea5e9',
-      });
-    }
-  }
-
-  // v0.0.643: documentos clínicos (atestado/declaração/encaminhamento/solicitação) — anexa ao
-  // atendimento (record) do MESMO DIA; sem record no dia → entra como item próprio. Espelha a web.
-  const clinicDocs = data.clinic_documents || [];
-  for (const doc of clinicDocs) {
-    const day = (doc.created_at || '').slice(0, 10);
-    const entry = { id: doc.id, doc_type: doc.doc_type, label: DOC_TYPE_LABELS[doc.doc_type] || 'Documento', signed: !!doc.signed, has_pdf: !!doc.has_pdf };
-    const host = items.find(it => it.source === 'record' && it.date === day);
-    if (host) {
-      (host.docs = host.docs || []).push(entry);
-    } else {
-      items.push({
-        source: 'document', type: 'documento',
-        date: day, time: (doc.created_at || '').slice(11, 16),
-        title: entry.label, status: doc.signed ? 'assinado' : 'rascunho', id: doc.id,
-        color: '#8b5cf6', docs: [entry],
-      });
-    }
-  }
-
-  items.sort((a, b) => ((b.date || '') + (b.time || '')).localeCompare((a.date || '') + (a.time || '')));
-  return items;
 }
 
 function formatDateBR(dateStr) {
@@ -261,7 +153,7 @@ export default function ProntuarioScreen() {
     try {
       const data = await api(`/api/prontuario/${patient.id}`);
       setProntuarioData(data);
-      setTimeline(buildTimeline(data));
+      setTimeline(buildProntuarioTimeline(data));
     } catch (e) { Alert.alert('Erro', e.message); }
     finally { setLoadingDetail(false); }
   };
@@ -275,7 +167,7 @@ export default function ProntuarioScreen() {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
-  const filteredTimeline = filter === 'all' ? timeline : timeline.filter(i => i.type === filter || (filter === 'exame' && i.source === 'report'));
+  const filteredTimeline = filterProntuarioTimeline(timeline, filter);
 
   // ======================== DETAIL VIEW ========================
   if (selectedPatient) {
@@ -283,6 +175,7 @@ export default function ProntuarioScreen() {
     const records = prontuarioData?.records || [];
     const reports = prontuarioData?.reports || [];
     const appts = prontuarioData?.appointments || [];
+    const finalizedReportCount = countFinalizedTimelineReports(reports);
 
     return (
       <View style={s.container}>
@@ -312,7 +205,7 @@ export default function ProntuarioScreen() {
             {/* Stats */}
             <View style={s.summaryRow}>
               <View style={s.summaryCard}><Text style={s.summaryNum}>{records.length}</Text><Text style={s.summaryLabel}>Consultas</Text></View>
-              <View style={s.summaryCard}><Text style={s.summaryNum}>{reports.length}</Text><Text style={s.summaryLabel}>Laudos</Text></View>
+              <View style={s.summaryCard}><Text style={s.summaryNum}>{finalizedReportCount}</Text><Text style={s.summaryLabel}>Laudos</Text></View>
               <View style={s.summaryCard}><Text style={s.summaryNum}>{appts.length}</Text><Text style={s.summaryLabel}>Agendamentos</Text></View>
             </View>
 
