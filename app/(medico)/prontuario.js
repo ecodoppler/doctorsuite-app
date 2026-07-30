@@ -174,7 +174,6 @@ export default function ProntuarioScreen() {
     const p = selectedPatient;
     const records = prontuarioData?.records || [];
     const reports = prontuarioData?.reports || [];
-    const appts = prontuarioData?.appointments || [];
     const finalizedReportCount = countFinalizedTimelineReports(reports);
 
     return (
@@ -206,7 +205,6 @@ export default function ProntuarioScreen() {
             <View style={s.summaryRow}>
               <View style={s.summaryCard}><Text style={s.summaryNum}>{records.length}</Text><Text style={s.summaryLabel}>Consultas</Text></View>
               <View style={s.summaryCard}><Text style={s.summaryNum}>{finalizedReportCount}</Text><Text style={s.summaryLabel}>Laudos</Text></View>
-              <View style={s.summaryCard}><Text style={s.summaryNum}>{appts.length}</Text><Text style={s.summaryLabel}>Agendamentos</Text></View>
             </View>
 
             {/* Filters */}
