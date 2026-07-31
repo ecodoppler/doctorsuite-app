@@ -4,9 +4,14 @@ import { Ionicons } from '@expo/vector-icons';
 import VFHeader from '../../../components/pregnancy/VFHeader';
 import Card from '../../../components/pregnancy/Card';
 import SectionTitle from '../../../components/pregnancy/SectionTitle';
-import Spark from '../../../components/pregnancy/Spark';
+import WeightTrendChart from '../../../components/pregnancy/WeightTrendChart';
+import BloodPressureTrendChart from '../../../components/pregnancy/BloodPressureTrendChart';
 import { api } from '../../../services/api';
 import { Fonts, Status, Warm } from '../../../services/theme';
+import {
+  buildPrenatalTrendModels,
+  formatDecimal,
+} from '../../../services/prenatal-trends';
 import ClinicalDisclaimer from '../../../components/ClinicalDisclaimer';
 
 const COLS = [
@@ -21,11 +26,40 @@ const ALERT_COLORS = {
   estavel: Status.ok,
   atencao: Status.attn,
   critico: Status.warn,
+  indisponivel: Status.slate,
 };
+
+const WEIGHT_STATUS_COLORS = {
+  abaixo: Status.attn,
+  adequado: Status.ok,
+  acima: Status.warn,
+  indisponivel: Status.slate,
+};
+
+function shortDate(value) {
+  if (!value) return null;
+  const text = String(value);
+  const br = text.match(/^(\d{2})\/(\d{2})/);
+  if (br) return `${br[1]}/${br[2]}`;
+  const iso = text.match(/^\d{4}-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[2]}/${iso[1]}`;
+  return text.slice(0, 5);
+}
+
+function signedKg(value) {
+  if (value == null) return '—';
+  return `${value > 0 ? '+' : ''}${formatDecimal(value)} kg`;
+}
+
+function rangeKg(range) {
+  if (!range) return '—';
+  return `${formatDecimal(range.min)}–${formatDecimal(range.max)} kg`;
+}
 
 export default function PrenatalScreen() {
   const { width } = useWindowDimensions();
-  const sparkW = Math.max(240, width - 32 - 28);
+  const chartW = Math.max(240, width - 32 - 28);
+  const stackMetrics = width < 360;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,23 +123,13 @@ export default function PrenatalScreen() {
     );
   }
 
-  // Peso
-  const weights = visits.map(v => v.weight).filter(v => v != null);
-  const weightNow = patient.weightNow;
-  const weightPre = patient.weightPre;
-  const ganho = (weightNow != null && weightPre != null)
-    ? (weightNow - weightPre).toFixed(1)
-    : null;
-  const expected = pregnancy.weightExpected || { label: '11–16 kg', category: 'unknown' };
-
-  // PA
-  const sysList = visits.map(v => v.paSis).filter(v => v != null);
-  const diaList = visits.map(v => v.paDia).filter(v => v != null);
-  const lastVisitWithPA = [...visits].reverse().find(v => v.paSis != null && v.paDia != null);
-  const lastSys = lastVisitWithPA?.paSis ?? null;
-  const lastDia = lastVisitWithPA?.paDia ?? null;
-  const paAlert = pregnancy.paAlert || { status: 'estavel', label: 'Estável · sem alertas' };
-  const paAlertColor = ALERT_COLORS[paAlert.status] || Status.slate;
+  const trendModels = buildPrenatalTrendModels({ patient, pregnancy, visits });
+  const weightModel = trendModels.weight;
+  const bpModel = trendModels.bloodPressure;
+  const weightStatusColor = WEIGHT_STATUS_COLORS[weightModel.status] || Status.slate;
+  const paAlertColor = ALERT_COLORS[bpModel.status] || Status.slate;
+  const weightDate = shortDate(weightModel.latest?.date);
+  const paDate = shortDate(bpModel.latest?.date);
 
   const ordered = [...visits].reverse();
 
@@ -123,32 +147,44 @@ export default function PrenatalScreen() {
 
           {/* Card Peso */}
           <Card padding={14}>
-            <View style={s.cardTopRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.metricLabel}>PESO (kg)</Text>
-                <Text style={s.metricValue}>{weightNow != null ? weightNow : '—'}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.smallText}>
-                  Pré: <Text style={s.smallStrong}>{weightPre != null ? `${weightPre} kg` : '—'}</Text>
-                </Text>
-                <Text style={s.smallText}>
-                  Ganho: <Text style={[s.smallStrong, ganho != null && { color: Status.ok }]}>
-                    {ganho != null ? `${ganho > 0 ? '+' : ''}${ganho} kg` : '—'}
+            <View style={[s.cardTopRow, stackMetrics && s.cardTopStack]}>
+              <View style={stackMetrics ? s.metricColumnStack : s.metricColumn}>
+                <Text style={s.metricLabel}>PESO (KG)</Text>
+                <View style={s.metricValueRow}>
+                  <Text style={s.metricValue}>
+                    {weightModel.latest ? formatDecimal(weightModel.latest.weightKg) : '—'}
                   </Text>
+                  {weightModel.latest ? <Text style={s.metricUnit}> kg</Text> : null}
+                </View>
+                {weightModel.latest ? (
+                  <Text style={s.metricMeta}>
+                    {weightModel.latest.ig}{weightDate ? ` · ${weightDate}` : ''}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={stackMetrics ? s.metricColumnStack : s.metricColumn}>
+                <Text style={s.smallText}>
+                  Ganho: <Text style={s.smallStrong}>{signedKg(weightModel.gainKg)}</Text>
                 </Text>
-                <Text style={s.smallText}>Esperado: {expected.label}</Text>
+                {weightModel.referenceAvailable ? (
+                  <>
+                    <Text style={s.smallText}>
+                      IMC pré: <Text style={s.smallStrong}>{formatDecimal(weightModel.bmi)} · {weightModel.categoryLabel}</Text>
+                    </Text>
+                    <Text style={s.smallText}>
+                      Meta total: <Text style={s.smallStrong}>{rangeKg(weightModel.totalGainRangeKg)}</Text>
+                    </Text>
+                  </>
+                ) : null}
+                <Text style={[s.statusText, { color: weightStatusColor }]}>
+                  {weightModel.statusLabel || 'Referência temporariamente indisponível'}
+                </Text>
               </View>
             </View>
-            {weights.length >= 2 ? (
-              <Spark
-                data={weights}
-                width={sparkW} height={64}
-                color={Warm.accent}
-                fill="rgba(232,153,118,0.22)"
-              />
+            {weightModel.observations.length >= 1 ? (
+              <WeightTrendChart model={weightModel} width={chartW} />
             ) : (
-              <Text style={s.sparkEmpty}>Aguardando segunda medição para curva</Text>
+              <Text style={s.sparkEmpty}>Aguardando primeira aferição de peso</Text>
             )}
           </Card>
 
@@ -156,32 +192,37 @@ export default function PrenatalScreen() {
 
           {/* Card PA */}
           <Card padding={14}>
-            <View style={s.cardTopRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.metricLabel}>PRESSÃO (sist./diast.)</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                  <Text style={s.metricValue}>{lastSys != null ? lastSys : '—'}</Text>
-                  {lastDia != null && <Text style={s.metricSlash}>/{lastDia}</Text>}
+            <View style={[s.cardTopRow, stackMetrics && s.cardTopStack]}>
+              <View style={stackMetrics ? s.metricColumnStack : s.metricColumn}>
+                <Text style={s.metricLabel}>PRESSÃO (SIST./DIAST.)</Text>
+                <View style={s.metricValueRow}>
+                  <Text style={s.metricValue}>{bpModel.latest ? bpModel.latest.systolic : '—'}</Text>
+                  {bpModel.latest ? <Text style={s.metricSlash}>/{bpModel.latest.diastolic}</Text> : null}
                 </View>
+                {bpModel.latest ? (
+                  <Text style={s.metricMeta}>
+                    {bpModel.latest.ig}{paDate ? ` · ${paDate}` : ''}
+                  </Text>
+                ) : null}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.smallText}>Limite: <Text style={s.smallStrong}>140/90</Text></Text>
-                <Text style={[s.smallText, { color: paAlertColor, fontFamily: Fonts.uiBold }]}>
-                  {paAlert.label}
+              <View style={stackMetrics ? s.metricColumnStack : s.metricColumn}>
+                {bpModel.referenceAvailable ? (
+                  <Text style={s.smallText}>
+                    Corte de atenção:{'\n'}
+                    <Text style={s.smallStrong}>
+                      PAS {formatDecimal(bpModel.thresholds.systolicAttention, 0)} ou PAD {formatDecimal(bpModel.thresholds.diastolicAttention, 0)}
+                    </Text>
+                  </Text>
+                ) : null}
+                <Text style={[s.statusText, { color: paAlertColor }]}>
+                  {bpModel.statusLabel || 'Referência temporariamente indisponível'}
                 </Text>
               </View>
             </View>
-            {sysList.length >= 2 ? (
-              <View>
-                <Spark data={sysList} width={sparkW} height={56} color={Warm.accentDeep} fill="rgba(184,93,63,0.14)" />
-                {diaList.length >= 2 && (
-                  <View style={s.sparkOverlay} pointerEvents="none">
-                    <Spark data={diaList} width={sparkW} height={56} color={Warm.rose} fill="transparent" />
-                  </View>
-                )}
-              </View>
+            {bpModel.points.length >= 1 ? (
+              <BloodPressureTrendChart model={bpModel} width={chartW} />
             ) : (
-              <Text style={s.sparkEmpty}>Aguardando segunda medição para curva</Text>
+              <Text style={s.sparkEmpty}>Aguardando primeira aferição de pressão</Text>
             )}
           </Card>
         </View>
@@ -231,13 +272,19 @@ const s = StyleSheet.create({
   empty: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic', textAlign: 'center' },
 
   cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 8 },
+  cardTopStack: { flexDirection: 'column', gap: 8 },
+  metricColumn: { flex: 1, minWidth: 0 },
+  metricColumnStack: { width: '100%', minWidth: 0 },
   metricLabel: { fontSize: 10, color: Status.slate, fontFamily: Fonts.uiBold, letterSpacing: 0.4, textTransform: 'uppercase' },
+  metricValueRow: { flexDirection: 'row', alignItems: 'baseline' },
   metricValue: { fontFamily: Fonts.numHeavy, fontSize: 22, color: Status.ink, lineHeight: 24 },
   metricSlash: { fontFamily: Fonts.num, fontSize: 14, color: Status.slate },
+  metricUnit: { fontFamily: Fonts.uiBold, fontSize: 11, color: Status.slate },
+  metricMeta: { marginTop: 3, fontSize: 9, color: Status.slate, fontFamily: Fonts.ui },
   smallText: { fontSize: 10, color: Status.slate, fontFamily: Fonts.ui, lineHeight: 14 },
   smallStrong: { color: Status.ink, fontFamily: Fonts.uiBold },
+  statusText: { marginTop: 4, fontSize: 10, lineHeight: 13, fontFamily: Fonts.uiBold },
 
-  sparkOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   sparkEmpty: { fontSize: 11, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
 
   tableHeader: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: Status.borderSoft },
