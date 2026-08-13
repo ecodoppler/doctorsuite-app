@@ -46,6 +46,10 @@ export default function MedicoLayout() {
         <Icon sf={{ default: 'calendar', selected: 'calendar' }} />
         <Label>Agenda</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="cirurgias">
+        <Icon sf={{ default: 'cross.case', selected: 'cross.case.fill' }} />
+        <Label>Cirurgias</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="prontuario">
         <Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} />
         <Label>Prontuário</Label>

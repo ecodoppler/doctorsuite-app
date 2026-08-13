@@ -132,6 +132,15 @@ export default function InicioScreen() {
             </Card>
           )}
 
+          <Pressable
+            style={({ pressed }) => [s.surgeryEntry, pressed && { opacity: 0.82 }]}
+            onPress={() => router.push('/(paciente)/cirurgias')}
+          >
+            <View style={s.surgeryEntryIcon}><Ionicons name="medkit-outline" size={21} color={Warm.accentDeep} /></View>
+            <View style={{ flex: 1 }}><Text style={s.surgeryEntryTitle}>Cirurgias</Text><Text style={s.surgeryEntryText}>Planejamento, orientações e termos</Text></View>
+            <Ionicons name="chevron-forward" size={19} color={Status.slate} />
+          </Pressable>
+
           {/* Grid 2x2 de ações */}
           {ACTIONS.length > 0 && (
             <>
@@ -206,6 +215,14 @@ export default function InicioScreen() {
             ))}
           </View>
         </View>
+        <Pressable
+          style={({ pressed }) => [s.surgeryEntry, pressed && { opacity: 0.82 }]}
+          onPress={() => router.push('/(paciente)/cirurgias')}
+        >
+          <View style={s.surgeryEntryIcon}><Ionicons name="medkit-outline" size={21} color={Warm.accentDeep} /></View>
+          <View style={{ flex: 1 }}><Text style={s.surgeryEntryTitle}>Cirurgias</Text><Text style={s.surgeryEntryText}>Planejamento, orientações e termos</Text></View>
+          <Ionicons name="chevron-forward" size={19} color={Status.slate} />
+        </Pressable>
 
         {/* Anel de IG */}
         <View style={s.ringWrap}>
@@ -539,6 +556,15 @@ const s = StyleSheet.create({
   nextWho: { fontSize: 12, color: Status.slate, fontFamily: Fonts.ui, marginTop: 2 },
   noNextRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   noNextText: { fontSize: 13, color: Status.slate, fontFamily: Fonts.ui, fontStyle: 'italic' },
+  surgeryEntry: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 16, marginTop: 12, padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.88)', borderWidth: 1,
+    borderColor: 'rgba(184,93,63,0.16)', borderRadius: 14,
+  },
+  surgeryEntryIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: Warm.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  surgeryEntryTitle: { fontFamily: Fonts.uiBold, fontSize: 13, color: Status.ink },
+  surgeryEntryText: { fontFamily: Fonts.ui, fontSize: 11, color: Status.slate, marginTop: 2 },
 
   actionsGrid: {
     flexDirection: 'row', flexWrap: 'wrap',
